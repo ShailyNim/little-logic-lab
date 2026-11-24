@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#DCEBE6">
+<title>Light the Bulbs · Little Logic Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/lab.css">
+<script src="../shared/lab.js"></script>
+<style>
+body{--accent:var(--sun);--on-accent:var(--on-sun)}
+#b{display:grid;gap:6px;grid-template-columns:repeat(var(--n),var(--s))}
+.t{width:var(--s);height:var(--s);border-radius:var(--r-cell);position:relative;background:var(--raised);cursor:pointer}
+.t.e{background:transparent;cursor:default}
+.t svg{width:100%;height:100%;display:block;transition:transform .25s}
+.t line{stroke:var(--text-soft);stroke-opacity:.5;stroke-width:16;stroke-linecap:round;transition:stroke .3s,stroke-opacity .3s}
+.t circle{fill:var(--text-soft);fill-opacity:.5;transition:fill .3s}
+.t.lit{background:var(--sun-t)}
+/* each bulb glows in its own colour once power reaches it */
+.t.lit.b0{background:var(--pink-t)}.t.lit.b1{background:var(--sky-t)}.t.lit.b2{background:var(--mint-t)}
+.t.lit.b3{background:var(--lavender-t)}.t.lit.b4{background:var(--apricot-t)}
+.t.lit.bulbt{box-shadow:inset 0 0 0 3px var(--bc)}
+.t.b0{--bc:var(--pink)}.t.b1{--bc:var(--sky)}.t.b2{--bc:var(--mint)}.t.b3{--bc:var(--lavender)}.t.b4{--bc:var(--apricot)}
+.t.lit line{stroke:#E2A92A;stroke-opacity:1}.t.lit circle{fill:#E2A92A;fill-opacity:1}
+.t:active:not(.e){transform:scale(.96)}
+.ic{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:calc(var(--s)*.48);pointer-events:none}
+.bulb{filter:grayscale(1) opacity(.5);transition:filter .3s}
+.bulb.lit{filter:none}
+.t.hinted{box-shadow:inset 0 0 0 3px var(--given)}
+</style>
+</head><body>
+<main class="screen">
+  <header class="hdr"><a class="home-btn" href="../index.html"><span aria-hidden="true">🏠</span> Home</a><div class="ttl"><h1>Light the Bulbs</h1><span class="lvl" id="lv"></span></div></header>
+  <div class="play" id="play"><div class="board"><div id="b"></div></div></div>
+  <div class="msg" id="msg" aria-live="polite"></div>
+  <div class="btns">
+    <button class="btn icon" id="prev" aria-label="Previous level">◀</button>
+    <button class="btn icon" id="hint" aria-label="Hint">💡</button>
+    <button class="btn icon" id="reset" aria-label="Start again">↺</button>
+    <button class="btn main" id="new">New puzzle</button>
+    <button class="btn icon" id="next" aria-label="Next level">▶</button>
+  </div>
+</main>
+<script>
+// n grid size (every box gets a wire piece), deg most wires one piece may join (2 = straight/corner, 3 adds T, 4 adds cross),
+// b range of bulbs, keep share of pieces that start already turned the right way
+const L=[{n:3,deg:2,b:[1,1],keep:.5},{n:3,deg:2,b:[1,1],keep:.3},{n:3,deg:3,b:[2,2],keep:.3},{n:4,deg:3,b:[2,2],keep:.3},{n:4,deg:3,b:[3,3],keep:.2},{n:4,deg:4,b:[3,4],keep:.1},{n:5,deg:4,b:[3,4],keep:.2},{n:5,deg:4,b:[4,5],keep:0},{n:6,deg:4,b:[4,6],keep:.1},{n:6,deg:4,b:[5,7],keep:0}];
+const GID='bulbs';
+Lab.setupGame({id:GID,
+  demo:'bulbs',caption:'Tap to turn. Light every bulb.',
+  stickers:['💡','🔋','⚡','🌟','🔦','🌈','☀️','🎆']});
+let lv=Math.min(L.length-1,Lab.game(GID).level||0),P,area={w:300,h:300};
+const $=i=>document.getElementById(i),rnd=k=>Math.floor(Math.random()*k);
+// directions as bits: N=1 E=2 S=4 W=8, [bit, dx, dy, opposite bit]
+const D=[[1,0,-1,4],[2,1,0,8],[4,0,1,1],[8,-1,0,2]];
+const rot=(m,k)=>{for(let i=0;i<k;i++)m=((m<<1)|(m>>3))&15;return m};
+
+// grow one tree of wire that reaches every box (winding paths, few dead ends), so a solution always exists
+function gen(d){const n=d.n,N=n*n;
+  for(;;){const m=Array(N).fill(0),dg=Array(N).fill(0),seen=Array(N).fill(false),s=rnd(N),stack=[s];seen[s]=true;let count=1;
+    while(stack.length){const t=stack[stack.length-1];
+      const opts=dg[t]<d.deg?D.map(dd=>{const x=t%n+dd[1],y=(t/n|0)+dd[2];return(x<0||y<0||x>=n||y>=n||seen[y*n+x])?null:[dd,y*n+x]}).filter(Boolean):[];
+      if(!opts.length){stack.pop();continue}
+      const[[bit,,,ob],u]=opts[rnd(opts.length)];
+      m[t]|=bit;m[u]|=ob;dg[t]++;dg[u]++;seen[u]=true;count++;stack.push(u)}
+    if(count<N)continue; // a box was left out: try again
+    const lf=[...Array(N).keys()].filter(c=>dg[c]==1),nb=lf.length-1;
+    if(nb<d.b[0]||nb>d.b[1])continue;
+    const bat=lf[rnd(lf.length)];
+    return{m,bat,bulbs:lf.filter(c=>c!=bat)}}}
+
+// which pieces get power from the battery, and is every wire end joined up?
+function check(){const{n,b,r,bat}=P,cm=b.map((m,i)=>rot(m,r[i]%4)),lit=new Set([bat]),q=[bat];let loose=false;
+  const link=(i,dd)=>{const x=i%n+dd[1],y=(i/n|0)+dd[2];if(x<0||y<0||x>=n||y>=n)return-1;const u=y*n+x;return(cm[u]&dd[3])?u:-1};
+  cm.forEach((m,i)=>D.forEach(dd=>{if((m&dd[0])&&link(i,dd)<0)loose=true}));
+  while(q.length){const i=q.pop();D.forEach(dd=>{if(cm[i]&dd[0]){const u=link(i,dd);if(u>=0&&!lit.has(u)){lit.add(u);q.push(u)}}})}
+  return{lit,ok:b.every((m,i)=>!m||lit.has(i))&&!loose}}
+
+function make(){
+  const d=L[lv],g=gen(d),n=d.n;
+  P={n,b:g.m,bat:g.bat,bulbs:g.bulbs,r:[],spin:[],done:false};
+  do{P.r=g.m.map(()=>Math.random()<d.keep?0:rnd(4))}while(check().ok); // never start already solved
+  P.r0=P.r.slice();P.spin=P.r.slice();
+  Lab.setLevel(GID,lv);Lab.hideWin();
+  $('lv').textContent='Level '+(lv+1)+' of '+L.length;
+  $('prev').disabled=lv==0;$('next').disabled=lv==L.length-1;
+  Lab.msg('Turn the wires so every 💡 lights up.');
+  build();update()}
+
+function size(){if(!P)return;const n=P.n,g=6,pad=20;
+  const s=Math.max(40,Math.min(96,Math.floor((Math.min(area.w,area.h)-pad-(n-1)*g)/n)));
+  $('b').style.setProperty('--s',s+'px');$('b').style.setProperty('--n',n)}
+
+function build(){
+  const{b,bat,bulbs}=P,B=$('b');size();B.innerHTML='';
+  b.forEach((m,i)=>{const t=document.createElement('div');t.className='t'+(m?'':' e')+(bulbs.includes(i)?' bulbt b'+(bulbs.indexOf(i)%5):'');t.dataset.i=i;
+    if(m){const seg=[[1,50,0],[2,100,50],[4,50,100],[8,0,50]].filter(s=>m&s[0]).map(s=>'<line x1="50" y1="50" x2="'+s[1]+'" y2="'+s[2]+'"/>').join('');
+      t.setAttribute('role','button');t.setAttribute('aria-label','Wire piece');
+      t.innerHTML='<svg viewBox="0 0 100 100">'+seg+'<circle cx="50" cy="50" r="10"/></svg>'+(i==bat?'<span class="ic">🔋</span>':bulbs.includes(i)?'<span class="ic bulb">💡</span>':'')}
+    B.appendChild(t)})}
+
+function update(){
+  const c=check();
+  [...$('b').children].forEach((t,i)=>{const s=t.querySelector('svg');if(!s)return;
+    s.style.transform='rotate('+P.spin[i]*90+'deg)';
+    t.classList.toggle('lit',c.lit.has(i));
+    const bl=t.querySelector('.bulb');if(bl)bl.classList.toggle('lit',c.lit.has(i))});
+  return c}
+
+$('b').onclick=e=>{
+  const t=e.target.closest('.t');if(!t||P.done||t.classList.contains('e'))return;
+  const i=+t.dataset.i;P.r[i]=(P.r[i]+1)%4;P.spin[i]++;
+  Lab.sfx('turn');
+  const c=update();
+  const on=P.bulbs.filter(x=>c.lit.has(x)).length;
+  if(on>(P.on||0))Lab.sfx('good');P.on=on;   // a chime each time another bulb lights up
+  Lab.msg(on?on+' of '+P.bulbs.length+' 💡 shining':'');
+  if(c.ok){P.done=true;Lab.msg('All lit up!');setTimeout(celebrate,800)}};
+
+function celebrate(){
+  const last=lv==L.length-1;
+  Lab.win({game:GID,hero:'💡',title:last?'You finished all the levels!':null,
+    lesson:'Power flows when every wire end joins up.',
+    next:last?null:()=>{lv++;make()},again:make})}
+
+$('prev').onclick=()=>{lv=Math.max(0,lv-1);make()};
+$('next').onclick=()=>{lv=Math.min(L.length-1,lv+1);make()};
+$('new').onclick=make;
+// hint: turn one piece the right way, preferring one next to the wires that already have power
+$('hint').onclick=()=>{if(P.done)return;
+  const{n,b}=P,c=check(),wrong=i=>b[i]&&rot(b[i],P.r[i]%4)!==b[i];
+  const near=i=>D.some(dd=>{const x=i%n+dd[1],y=(i/n|0)+dd[2];return x>=0&&y>=0&&x<n&&y<n&&c.lit.has(y*n+x)});
+  const all=b.map((_,i)=>i).filter(wrong),pick=all.find(i=>near(i))??all[0];
+  if(pick==null){Lab.msg('Every piece already points the right way.');return}
+  P.spin[pick]+=(4-P.r[pick]%4)%4;P.r[pick]=0;Lab.sfx('hint');
+  const el=$('b').children[pick];el.classList.add('hinted');setTimeout(()=>el.classList.remove('hinted'),1400);
+  const u=update(),on=P.bulbs.filter(x=>u.lit.has(x)).length;if(on>(P.on||0))Lab.sfx('good');P.on=on;
+  Lab.msg('💡 That piece now points the right way.');
+  if(u.ok){P.done=true;Lab.msg('All lit up!');setTimeout(celebrate,800)}};
+$('reset').onclick=()=>{if(P.done)return;
+  P.r.forEach((v,i)=>{P.spin[i]+=(P.r0[i]-v+4)%4});P.r=P.r0.slice();update();Lab.msg('Back to the start.')};
+Lab.fit($('play'),(w,h)=>{area={w,h};size()});
+make();
+</script>
+</body></html>

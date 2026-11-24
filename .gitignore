@@ -1,0 +1,7 @@
+# original game files downloaded from the old Netlify sites: kept on this computer only
+_source/
+# Netlify CLI link state
+.netlify/
+# editor and OS clutter
+.DS_Store
+Thumbs.db

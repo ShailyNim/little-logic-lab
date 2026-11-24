@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#DCEBE6">
+<title>Number Chips · Little Logic Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/lab.css">
+<script src="../shared/lab.js"></script>
+<style>
+body{--accent:var(--lavender);--on-accent:var(--on-lavender)}
+#b{display:grid;gap:0;grid-template-columns:repeat(var(--n),var(--s))}
+.c{width:var(--s);height:var(--s);position:relative;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;align-content:center;
+  cursor:pointer;font-weight:800;transition:box-shadow .15s}
+.c.g{cursor:default}
+.c.g .big{color:var(--given)}
+.c.sel{box-shadow:inset 0 0 0 3px var(--ring)}
+.c.dup{box-shadow:inset 0 0 0 3px var(--nudge)}
+.c.sel.dup{box-shadow:inset 0 0 0 3px var(--ring),inset 0 0 0 6px var(--nudge)}
+.big{font-size:calc(var(--s)*.52);line-height:1}
+.small{font-size:calc(var(--s)*.24);font-weight:700;padding:0 4px;line-height:1.15;max-width:100%;color:var(--text-soft)}
+.lab{position:absolute;top:4px;left:5px;font-size:max(13px,calc(var(--s)*.2));font-weight:800;line-height:1.3;
+  background:var(--panel);color:var(--text);border-radius:7px;padding:0 5px;transition:background .3s}
+.lab.ok{background:var(--mint);color:var(--on-mint)}
+.lab.bad{box-shadow:0 0 0 2px var(--nudge)}
+#pad .chip{min-width:56px;height:56px}
+</style>
+</head><body>
+<main class="screen">
+  <header class="hdr"><a class="home-btn" href="../index.html"><span aria-hidden="true">🏠</span> Home</a><div class="ttl"><h1>Number Chips</h1><span class="lvl" id="lv"></span></div></header>
+  <div class="play" id="play"><div class="board"><div id="b"></div></div></div>
+  <div class="msg" id="msg" aria-live="polite"></div>
+  <div class="tray" id="pad"></div>
+  <div class="btns">
+    <button class="btn icon" id="prev" aria-label="Previous level">◀</button>
+    <button class="btn icon" id="hint" aria-label="Hint">💡</button>
+    <button class="btn icon" id="reset" aria-label="Start again">↺</button>
+    <button class="btn main" id="new">New puzzle</button>
+    <button class="btn icon" id="next" aria-label="Next level">▶</button>
+  </div>
+</main>
+<script>
+// n grid size, ops a=add s=subtract m=mixed, w = relative chance of 1-, 2- and 3-box groups,
+// sp = how many single-box hints may be added to make the answer unique before trying a fresh layout
+const L=[
+ {n:3,ops:'a',w:[5,5,0],sp:9},{n:3,ops:'a',w:[3,6,1],sp:2},{n:3,ops:'a',w:[2,5,3],sp:2},
+ {n:3,ops:'s',w:[3,7,0],sp:2},{n:3,ops:'m',w:[2,6,2],sp:2},
+ {n:4,ops:'a',w:[4,6,0],sp:3},{n:4,ops:'a',w:[2,5,3],sp:2},{n:4,ops:'s',w:[2,8,0],sp:2},
+ {n:4,ops:'m',w:[2,6,2],sp:2},{n:4,ops:'m',w:[1,6,3],sp:1},
+ {n:5,ops:'a',w:[3,5,2],sp:3},{n:5,ops:'m',w:[2,6,2],sp:2},{n:5,ops:'m',w:[1,6,3],sp:1}];
+// soft pastel tints so touching groups look different
+const COL=['var(--sky-t)','var(--sun-t)','var(--pink-t)','var(--mint-t)','var(--lavender-t)','var(--apricot-t)'];
+const GID='chips';
+Lab.setupGame({id:GID,
+  demo:'chips',caption:'Tap a box, then a number.',
+  stickers:['🔢','🎲','🎯','🧮','✏️','🎈','🍭','🪁']});
+let lv=Math.min(L.length-1,Lab.game(GID).level||0),P,area={w:300,h:300};
+const $=i=>document.getElementById(i),rnd=k=>Math.floor(Math.random()*k);
+const shuf=a=>{a=[...a];for(let i=a.length-1;i>0;i--){const j=rnd(i+1);[a[i],a[j]]=[a[j],a[i]]}return a};
+const nbrs=(c,n)=>{const r=c/n|0,q=c%n,o=[];if(r>0)o.push(c-n);if(r<n-1)o.push(c+n);if(q>0)o.push(c-1);if(q<n-1)o.push(c+1);return o};
+const COLS='ABCDE';
+
+// a random full grid with no repeats in any row or column
+function latin(n){const rows=shuf([...Array(n).keys()]),cols=shuf([...Array(n).keys()]),sym=shuf([...Array(n).keys()]);
+  const s=[];for(let r=0;r<n;r++)for(let c=0;c<n;c++)s.push(sym[(rows[r]+cols[c])%n]+1);return s}
+
+// cut the grid into groups and work out each group's target
+function part(n,sol,d){const cof=Array(n*n).fill(-1),cages=[],tot=d.w.reduce((a,b)=>a+b,0);
+  for(const s of shuf([...Array(n*n).keys()])){if(cof[s]>=0)continue;
+    let x=rnd(tot),want=1;for(let k=0;k<3;k++){if(x<d.w[k]){want=k+1;break}x-=d.w[k]}
+    const cells=[s];cof[s]=cages.length;
+    while(cells.length<want){const nb=[];cells.forEach(c=>nbrs(c,n).forEach(u=>{if(cof[u]<0&&!nb.includes(u))nb.push(u)}));
+      if(!nb.length)break;const u=nb[rnd(nb.length)];cof[u]=cages.length;cells.push(u)}
+    cages.push({cells:cells.sort((a,b)=>a-b)})}
+  cages.forEach(cg=>{const v=cg.cells.map(c=>sol[c]);
+    if(v.length==1){cg.op='=';cg.t=v[0]}
+    else if(v.length==2&&v[0]!=v[1]&&(d.ops=='s'||(d.ops=='m'&&Math.random()<.5))){cg.op='-';cg.t=Math.abs(v[0]-v[1])}
+    else{cg.op='+';cg.t=v.reduce((a,b)=>a+b,0)}});
+  return cages}
+const cofOf=(n,cages)=>{const c=Array(n*n);cages.forEach((g,k)=>g.cells.forEach(x=>c[x]=k));return c};
+
+// counts solutions, stops at 2
+function count(n,cages){const cof=cofOf(n,cages),g=Array(n*n).fill(0),rs=Array(n).fill(0),cs=Array(n).fill(0),
+  rem=cages.map(c=>c.cells.length),sum=cages.map(()=>0);let cnt=0;
+  (function go(i){if(cnt>1)return;if(i==n*n){cnt++;return}
+    const r=i/n|0,c=i%n,k=cof[i],cg=cages[k];
+    for(let v=1;v<=n;v++){const b=1<<v;if((rs[r]&b)||(cs[c]&b))continue;
+      rem[k]--;sum[k]+=v;g[i]=v;let ok;
+      if(cg.op=='=')ok=v==cg.t;
+      else if(cg.op=='+')ok=rem[k]==0?sum[k]==cg.t:(sum[k]+rem[k]<=cg.t&&sum[k]+rem[k]*n>=cg.t);
+      else ok=rem[k]>0||Math.abs(g[cg.cells[0]]-g[cg.cells[1]])==cg.t;
+      if(ok){rs[r]|=b;cs[c]|=b;go(i+1);rs[r]&=~b;cs[c]&=~b}
+      rem[k]++;sum[k]-=v;g[i]=0}})(0);
+  return cnt}
+
+function gen(d){const n=d.n;
+  for(let t=0;;t++){const sol=latin(n);let cages=part(n,sol,d),sp=0;
+    while(count(n,cages)>1){
+      if(t<40&&sp>=d.sp)break;
+      const m=cages.filter(c=>c.cells.length>1);if(!m.length)break;
+      const x=m[rnd(m.length)];cages=cages.filter(c=>c!=x);
+      x.cells.forEach(c=>cages.push({cells:[c],op:'=',t:sol[c]}));sp++}
+    if(count(n,cages)==1)return{sol,cages}}}
+
+function rule(){const o=L[lv].ops;
+  return o=='a'?'5+ means the group adds up to 5.':o=='s'?'2− means the two numbers are 2 apart.':'5+ adds up to 5. 1− means 1 apart.'}
+
+function make(){
+  const d=L[lv],g=gen(d),n=d.n,cof=cofOf(n,g.cages),giv=new Set();
+  g.cages.forEach(c=>{if(c.op=='=')giv.add(c.cells[0])});
+  // colour groups so touching groups differ
+  const cc=Array(g.cages.length).fill(-1);
+  g.cages.forEach((cg,k)=>{const bad=new Set();cg.cells.forEach(c=>nbrs(c,n).forEach(u=>{if(cof[u]!=k&&cc[cof[u]]>=0)bad.add(cc[cof[u]])}));
+    let x=0;while(bad.has(x))x++;cc[k]=x%COL.length});
+  P={n,sol:g.sol,cages:g.cages,cof,giv,cc,v:g.sol.map((s,i)=>giv.has(i)?[s]:[]),sel:-1,done:false};
+  P.sel=[...Array(n*n).keys()].find(i=>!giv.has(i));
+  Lab.setLevel(GID,lv);Lab.hideWin();
+  $('lv').textContent='Level '+(lv+1)+' of '+L.length;
+  $('prev').disabled=lv==0;$('next').disabled=lv==L.length-1;
+  Lab.msg(rule());
+  size();render()}
+
+function size(){if(!P)return;const n=P.n;
+  const s=Math.max(44,Math.min(92,Math.floor((Math.min(area.w,area.h)-20)/n)));
+  $('b').style.setProperty('--s',s+'px');$('b').style.setProperty('--n',n)}
+
+function check(){const{n,v,cages}=P,one=i=>v[i].length==1?v[i][0]:0,dup=new Set();let dupMsg='';
+  for(let a=0;a<n*n;a++){const x=one(a);if(!x)continue;
+    for(let b=a+1;b<n*n;b++)if(one(b)==x){
+      if((a/n|0)==(b/n|0)){dup.add(a);dup.add(b);dupMsg=dupMsg||'Nearly! Row '+((a/n|0)+1)+' has two '+x+'s.'}
+      else if(a%n==b%n){dup.add(a);dup.add(b);dupMsg=dupMsg||'Nearly! Column '+COLS[a%n]+' has two '+x+'s.'}}}
+  const cs=cages.map(cg=>{if(cg.op=='=')return'ok';if(!cg.cells.every(one))return'';const vs=cg.cells.map(one);
+    return(cg.op=='+'?vs.reduce((a,b)=>a+b,0):Math.abs(vs[0]-vs[1]))==cg.t?'ok':'bad'});
+  return{dup,dupMsg,cs,ok:v.every(a=>a.length==1)&&!dup.size&&cs.every(s=>s=='ok')}}
+
+// thick cream outline around each group, thin lines inside it
+function edge(i){const{n,cof}=P,k=cof[i],r=i/n|0,q=i%n;
+  const t=r==0||cof[i-n]!=k,rt=q==n-1||cof[i+1]!=k,b=r==n-1||cof[i+n]!=k,l=q==0||cof[i-1]!=k,
+    w=x=>x?'3px solid var(--text)':'1px solid var(--line)',rd=x=>x?'14px':'0';
+  return'border-top:'+w(t)+';border-right:'+w(rt)+';border-bottom:'+w(b)+';border-left:'+w(l)+';border-radius:'+rd(t&&l)+' '+rd(t&&rt)+' '+rd(b&&rt)+' '+rd(b&&l)}
+
+let prevBad=new Set(),prevDup=new Set();
+function render(after){
+  const{n,v,cages,cof,giv,cc,sel}=P,c=check();
+  let h='';
+  for(let i=0;i<n*n;i++){const k=cof[i],cg=cages[k],a=v[i];
+    const lab=cg.op!='='&&cg.cells[0]==i?'<span class="lab '+c.cs[k]+'">'+cg.t+(cg.op=='+'?'+':'−')+'</span>':'';
+    h+='<div class="c'+(giv.has(i)?' g':'')+(i==sel?' sel':'')+(c.dup.has(i)?' dup':'')+'" data-i="'+i+'" style="background:'+COL[cc[k]]+';'+edge(i)+'">'+lab+
+      (a.length==1?'<span class="big">'+a[0]+'</span>':a.length?'<span class="small">'+a.join(' ')+'</span>':'')+'</div>'}
+  $('b').innerHTML=h;
+  let p='';for(let x=1;x<=n;x++)p+='<button class="chip'+(sel>=0&&v[sel].includes(x)?'':' off')+'" data-n="'+x+'">'+x+'</button>';
+  $('pad').innerHTML=p+'<button class="chip off" data-n="0" aria-label="Erase">⌫</button>';
+  if(after){
+    // wobble only what just went wrong
+    c.dup.forEach(i=>{if(!prevDup.has(i))Lab.wobble($('b').children[i])});
+    const bad=new Set(c.cs.map((s,k)=>s=='bad'?k:-1).filter(k=>k>=0));
+    let badMsg='';bad.forEach(k=>{if(!prevBad.has(k)){const cg=cages[k];Lab.wobble($('b').children[cg.cells[0]].querySelector('.lab'));
+      badMsg='Nearly! That group needs '+(cg.op=='+'?'to add up to '+cg.t:'numbers '+cg.t+' apart')+'.'}});
+    prevBad=bad;prevDup=c.dup;
+    Lab.msg(c.dupMsg||badMsg||(c.ok?'You did it!':''));
+  }
+  if(c.ok&&!P.done){P.done=true;setTimeout(celebrate,800)}}
+
+$('b').onclick=e=>{const t=e.target.closest('.c');if(!t||P.done)return;const i=+t.dataset.i;if(P.giv.has(i))return;P.sel=i;render()};
+$('pad').onclick=e=>{const b=e.target.closest('button');if(b)press(+b.dataset.n)};
+addEventListener('keydown',e=>{if(!P)return;if(e.key=='Backspace'||e.key=='Delete')press(0);else if(/^[1-9]$/.test(e.key)&&+e.key<=P.n)press(+e.key)});
+function press(x){
+  if(P.done)return;
+  if(P.sel<0){Lab.msg('Tap a box first.');return}
+  const a=P.v[P.sel];
+  if(x==0)a.length=0;else{const j=a.indexOf(x);if(j>=0)a.splice(j,1);else{a.push(x);a.sort()}}
+  Lab.sfx(x?'place':'undo');
+  render(true)}
+
+function celebrate(){
+  const last=lv==L.length-1;
+  Lab.win({game:GID,hero:'🔢',title:last?'You finished all the levels!':null,
+    lesson:'Every row and column has each number once.',
+    next:last?null:()=>{lv++;make()},again:make})}
+
+$('prev').onclick=()=>{lv=Math.max(0,lv-1);make()};
+$('next').onclick=()=>{lv=Math.min(L.length-1,lv+1);make()};
+$('new').onclick=make;
+// hint: fill in one box with its right number (the chosen box if it is empty or wrong) and lock it in gold
+$('hint').onclick=()=>{if(P.done)return;
+  const bad=i=>!P.giv.has(i)&&!(P.v[i].length==1&&P.v[i][0]==P.sol[i]);
+  const pick=bad(P.sel)?P.sel:[...Array(P.n*P.n).keys()].find(bad);
+  if(pick==null){Lab.msg('Every box is already right.');return}
+  P.v[pick]=[P.sol[pick]];P.giv.add(pick);P.sel=pick;Lab.sfx('hint');render(true);
+  if(!P.done)Lab.msg('💡 That box is '+P.sol[pick]+'.')};
+$('reset').onclick=()=>{if(P.done)return;P.v=P.v.map((a,i)=>P.giv.has(i)?a:[]);prevBad=new Set();prevDup=new Set();render();Lab.msg(rule())};
+Lab.fit($('play'),(w,h)=>{area={w,h};size()});
+make();
+</script>
+</body></html>

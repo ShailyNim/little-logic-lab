@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#DCEBE6">
+<title>Little Logic Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared/lab.css">
+<script src="shared/lab.js"></script>
+<style>
+.top{display:flex;align-items:center;gap:10px;min-height:var(--tap);flex:none}
+.top h1{margin:0;font-size:28px;font-weight:800;flex:1;line-height:1.1}
+.top .logo{font-size:30px}
+.sub{margin:0;font-size:15px;font-weight:600;color:var(--text-soft);flex:none}
+.round.off{opacity:.55}
+.tiles{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:minmax(0,190px);gap:12px;align-content:center}
+.tile{border-radius:var(--r-panel);background:var(--accent);color:var(--on-accent);text-decoration:none;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:10px 8px;text-align:center;
+  min-height:0;transition:transform .1s}
+.tile:active{transform:scale(.96)}
+.tile:focus-visible{outline:3px solid var(--ring);outline-offset:3px}
+.tile .ic{font-size:clamp(34px,11vw,54px);line-height:1.15}
+.tile .nm{font-size:17px;font-weight:800;line-height:1.15}
+.tile .st{font-size:14px;font-weight:700;opacity:.85;min-height:19px}
+.tile.soon{opacity:.45;cursor:default}
+.tile:last-child:nth-child(odd){grid-column:1 / -1;flex-direction:row;gap:12px}
+.tile:last-child:nth-child(odd) .nm{text-align:left}
+.tile.soon:active{transform:none}
+:root.dim .tile{filter:brightness(.88)}
+</style>
+</head><body>
+<main class="screen">
+  <header class="top">
+    <span class="logo" aria-hidden="true">🧪</span>
+    <h1>Little Logic Lab</h1>
+    <button class="round" id="snd" aria-label="Sound"></button>
+    <button class="round" id="dim" aria-label="Dim mode"></button>
+  </header>
+  <p class="sub">Pick a puzzle to play.</p>
+  <nav class="tiles" id="tiles"></nav>
+</main>
+<script>
+const GAMES=[
+  {id:'bulbs',  href:'light-the-bulbs/', name:'Light the Bulbs', icon:'💡', c:'sun'},
+  {id:'rovers', href:'lost-rovers/',     name:'Lost Rovers',     icon:'🤖', c:'sky'},
+  {id:'chips',  href:'number-chips/',    name:'Number Chips',    icon:'🔢', c:'lavender'},
+  {id:'sudoku', href:'sudoku/',          name:'Sudoku',          icon:'🧩', c:'pink'},
+  {id:'trails', href:'star-trails/',     name:'Star Trails',     icon:'⭐', c:'mint'},
+  {id:'marble', href:null,               name:'Marble Run',      icon:'🔵', c:'apricot', soon:true}
+];
+const T=document.getElementById('tiles');
+T.innerHTML=GAMES.map(g=>{
+  const style='--accent:var(--'+g.c+');--on-accent:var(--on-'+g.c+')';
+  if(g.soon)return '<div class="tile soon" style="'+style+'" aria-label="'+g.name+', coming soon"><span class="ic">'+g.icon+'</span><span class="nm">'+g.name+'</span><span class="st">Coming soon</span></div>';
+  const s=Lab.game(g.id).stars;
+  return '<a class="tile" style="'+style+'" href="'+g.href+'"><span class="ic">'+g.icon+'</span><span class="nm">'+g.name+'</span><span class="st">'+(s?'⭐ '+s:'New')+'</span></a>';
+}).join('');
+
+const snd=document.getElementById('snd'),dim=document.getElementById('dim');
+function paint(){snd.textContent=Lab.sound?'🔊':'🔇';snd.classList.toggle('off',!Lab.sound);snd.setAttribute('aria-pressed',Lab.sound);
+  dim.textContent='🌙';dim.classList.toggle('off',!Lab.dim);dim.setAttribute('aria-pressed',Lab.dim)}
+snd.onclick=()=>{Lab.setSound(!Lab.sound);paint();Lab.sfx('good')};
+dim.onclick=()=>{Lab.setDim(!Lab.dim);paint()};
+paint();
+// stars update when coming back with the browser's back button
+addEventListener('pageshow',e=>{if(e.persisted)location.reload()});
+</script>
+</body></html>

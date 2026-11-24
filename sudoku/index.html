@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#DCEBE6">
+<title>Sudoku · Little Logic Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/lab.css">
+<script src="../shared/lab.js"></script>
+<style>
+body{--accent:var(--pink);--on-accent:var(--on-pink)}
+.grid{display:grid;gap:var(--g)}
+.cell{width:var(--s);height:var(--s);border-radius:min(var(--r-cell),calc(var(--s)*.22));background:var(--raised);
+  display:flex;align-items:center;justify-content:center;font-size:calc(var(--s)*.52);font-weight:800;cursor:pointer;transition:box-shadow .15s,background .3s}
+.cell.given{color:var(--given);cursor:default}
+.cell.sel{box-shadow:inset 0 0 0 3px var(--ring)}
+.cell.clash{box-shadow:inset 0 0 0 3px var(--nudge)}
+.cell.sel.clash{box-shadow:inset 0 0 0 3px var(--ring),inset 0 0 0 6px var(--nudge)}
+/* each number has its own colour: a soft tint in the grid, the full colour on its button */
+.n1{--nt:var(--sun-t);--nf:var(--sun);--nd:var(--on-sun)}
+.n2{--nt:var(--sky-t);--nf:var(--sky);--nd:var(--on-sky)}
+.n3{--nt:var(--pink-t);--nf:var(--pink);--nd:var(--on-pink)}
+.n4{--nt:var(--mint-t);--nf:var(--mint);--nd:var(--on-mint)}
+.n5{--nt:var(--lavender-t);--nf:var(--lavender);--nd:var(--on-lavender)}
+.cell[class*=" n"]{background:var(--nt);color:var(--nd)}
+.cell.given[class*=" n"]{color:var(--given)}
+#pad .chip[class*=" n"]{background:var(--nf);color:var(--nd)}
+#pad .chip.on{box-shadow:0 0 0 3px var(--ring)}
+.solved .cell{background:var(--mint);color:var(--on-mint)}
+#stats{display:flex;justify-content:center;gap:14px;flex-wrap:wrap}
+#stats b{color:var(--text);font-weight:800}
+#over{background:none;border:0;color:var(--text-soft);font:600 13px var(--font);text-decoration:underline;cursor:pointer;padding:4px;flex:none;align-self:center}
+</style>
+</head><body>
+<main class="screen">
+  <header class="hdr"><a class="home-btn" href="../index.html"><span aria-hidden="true">🏠</span> Home</a><div class="ttl"><h1>Sudoku</h1><span class="lvl" id="lv"></span></div></header>
+  <div class="caption" id="stats"></div>
+  <div class="play" id="play"><div class="board"><div id="grid"></div></div></div>
+  <div class="msg" id="msg" aria-live="polite"></div>
+  <div class="tray" id="pad"></div>
+  <div class="btns">
+    <button class="btn icon" id="hint" aria-label="Hint">💡</button>
+    <button class="btn icon" id="reset" aria-label="Start again">↺</button>
+    <button class="btn main" id="new">New puzzle</button>
+  </div>
+  <button id="over">Start over from 3×3</button>
+</main>
+<script>
+const GID='sudoku',KEY='lll.sudoku';
+// Sudoku's stickers are its rewards: 💎 no mistakes and a best time, ❤️ few mistakes or quick, 😊 for every other win
+Lab.setupGame({id:GID,
+  demo:'sudoku',caption:'Tap a box, then a number.',
+  stickers:['😊']});
+const M={
+  3:{steps:[5,4,3],boxW:3,boxH:1,next:4,need:2},
+  4:{steps:[9,7,6],boxW:2,boxH:2,next:5,need:3},
+  5:{steps:[14,11,9],boxW:5,boxH:1,next:3,need:4}};
+const DEF={size:3,step:0,wins:0,best:null,gems:0,hearts:0,smiles:0};
+const PRAISE=['You did it!','Great thinking!','Puzzle solved!','Super sorting!','Brain power!'];
+const $=i=>document.getElementById(i);
+let S;try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){}
+S=Object.assign({},DEF,S||{});if(!M[S.size])S={...DEF};
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
+
+let n,cfg,sol,board,given,sel=-1,hist=[],timer=null,secs=0,errors=0,done=false,area={w:300,h:300};
+
+function fillGrid(g){ // random full grid that follows row, column and box rules
+  for(let i=0;i<n*n;i++)if(!g[i]){
+    for(const v of [...Array(n).keys()].map(x=>x+1).sort(()=>Math.random()-.5)){
+      if(ok(g,i,v)){g[i]=v;if(fillGrid(g))return true;g[i]=0}}
+    return false}
+  return true}
+function ok(g,i,v){const r=i/n|0,c=i%n,{boxW,boxH}=cfg;
+  for(let k=0;k<n;k++)if(g[r*n+k]==v||g[k*n+c]==v)return false;
+  const br=r-r%boxH,bc=c-c%boxW;
+  for(let y=0;y<boxH;y++)for(let x=0;x<boxW;x++)if(g[(br+y)*n+bc+x]==v)return false;
+  return true}
+
+function start(){
+  n=S.size;cfg=M[n];sol=Array(n*n).fill(0);fillGrid(sol);
+  const keep=new Set([...Array(n*n).keys()].sort(()=>Math.random()-.5).slice(0,cfg.steps[S.step]));
+  board=sol.map((v,i)=>keep.has(i)?v:0);given=keep;
+  sel=[...Array(n*n).keys()].find(i=>!given.has(i));hist=[];errors=0;done=false;secs=0;
+  Lab.hideWin();$('grid').classList.remove('solved');
+  $('lv').textContent=n+'×'+n+' · step '+(S.step+1)+' of 3';
+  Lab.msg('Each number once in every row'+(cfg.boxH>1?', column and box.':' and column.'));
+  clearInterval(timer);timer=setInterval(()=>{if(!done&&!document.hidden){secs++;stats()}},1000);
+  stats();size();render()}
+
+const mmss=t=>String(t/60|0).padStart(2,'0')+':'+String(t%60).padStart(2,'0');
+function stats(){$('stats').innerHTML='<span>⏱ <b>'+mmss(secs)+'</b></span><span>🏆 '+S.wins+'/'+cfg.need+' to the next step</span>'}
+
+function size(){if(!n)return;const box=cfg.boxW>1&&cfg.boxH>1,g=box?4:6,extra=box?8:0;
+  const s=Math.max(44,Math.min(84,Math.floor((Math.min(area.w,area.h)-20-(n-1)*g-extra)/n)));
+  $('grid').style.setProperty('--s',s+'px');$('grid').style.setProperty('--g',g+'px')}
+
+function clashes(){const c=new Set();
+  for(let i=0;i<n*n;i++){if(!board[i])continue;const v=board[i];board[i]=0;if(!ok(board,i,v))c.add(i);board[i]=v}
+  return c}
+
+function render(){
+  const c=clashes(),G=$('grid'),box=cfg.boxW>1&&cfg.boxH>1;
+  const cell=i=>'<div class="cell'+(given.has(i)?' given':'')+(board[i]?' n'+board[i]:'')+(i==sel?' sel':'')+(c.has(i)?' clash':'')+'" data-i="'+i+'" role="button" aria-label="Row '+((i/n|0)+1)+' column '+(i%n+1)+'">'+(board[i]||'')+'</div>';
+  if(box){ // 2×2 boxes drawn as separate groups
+    G.className='grid';G.style.gridTemplateColumns='repeat('+(n/cfg.boxW)+',auto)';G.style.gap='8px';let h='';
+    for(let by=0;by<n;by+=cfg.boxH)for(let bx=0;bx<n;bx+=cfg.boxW){
+      h+='<div class="grid" style="grid-template-columns:repeat('+cfg.boxW+',var(--s))">';
+      for(let y=0;y<cfg.boxH;y++)for(let x=0;x<cfg.boxW;x++)h+=cell((by+y)*n+bx+x);h+='</div>'}
+    G.innerHTML=h}
+  else{G.className='grid';G.style.gap='';G.style.gridTemplateColumns='repeat('+n+',var(--s))';G.innerHTML=board.map((_,i)=>cell(i)).join('')}
+  let p='';for(let x=1;x<=n;x++)p+='<button class="chip n'+x+(sel>=0&&board[sel]==x?' on':'')+'" data-n="'+x+'">'+x+'</button>';
+  $('pad').innerHTML=p+'<button class="chip off" data-n="0" aria-label="Erase">⌫</button>';
+  return c}
+
+$('grid').onclick=e=>{const t=e.target.closest('.cell');if(!t||done)return;const i=+t.dataset.i;if(given.has(i))return;sel=i;render()};
+$('pad').onclick=e=>{const b=e.target.closest('button');if(b)put(+b.dataset.n)};
+addEventListener('keydown',e=>{if(done)return;if(e.key=='Backspace'||e.key=='Delete')put(0);else if(/^[1-9]$/.test(e.key)&&+e.key<=n)put(+e.key)});
+
+function put(v){
+  if(done)return;if(sel<0){Lab.msg('Tap a box first.');return}
+  if(board[sel]==v)return;
+  hist.push({i:sel,v:board[sel]});board[sel]=v;
+  const c=render();
+  if(v&&c.has(sel)){errors++;Lab.wobble(document.querySelector('.cell[data-i="'+sel+'"]'));
+    const r=(sel/n|0)+1;
+    Lab.msg('Nearly! There is already a '+v+(rowHas(sel,v)?' in row '+r+'.':colHas(sel,v)?' in this column.':' in this box.'))}
+  else{Lab.sfx(v?'place':'undo');Lab.msg('')}
+  if(board.every(x=>x)&&!c.size)win()}
+const rowHas=(i,v)=>{const r=i/n|0;for(let k=0;k<n;k++)if(r*n+k!=i&&board[r*n+k]==v)return true;return false};
+const colHas=(i,v)=>{const c=i%n;for(let k=0;k<n;k++)if(k*n+c!=i&&board[k*n+c]==v)return true;return false};
+
+function win(){
+  done=true;clearInterval(timer);$('grid').classList.add('solved');
+  let reward='😊';
+  if(errors==0&&(S.best==null||secs<=S.best)){reward='💎';S.gems++}
+  else if(errors<=2||secs<120){reward='❤️';S.hearts++}
+  else S.smiles++;
+  if(S.best==null||secs<S.best)S.best=secs;
+  S.wins++;let lesson='You found every number. Time: '+mmss(secs)+'.';
+  if(S.wins>=cfg.need){S.wins=0;S.best=null;
+    if(S.step<2){S.step++;lesson='You unlocked a harder step!'}
+    else{S.size=cfg.next;S.step=0;lesson=S.size==3?'You beat every grid! Back to 3×3 for fun.':'Welcome to the big '+S.size+'×'+S.size+' grid!'}}
+  save();stats();Lab.msg('You did it!');
+  setTimeout(()=>Lab.win({game:GID,hero:reward,sticker:reward,lesson,next:start,nextLabel:'Next puzzle'}),800)}
+
+// hint: fill in one box with its right number (the chosen box if it is empty or wrong) and lock it in gold
+$('hint').onclick=()=>{if(done)return;
+  const bad=i=>!given.has(i)&&board[i]!==sol[i];
+  const pick=sel>=0&&bad(sel)?sel:[...Array(n*n).keys()].find(bad);
+  if(pick==null){Lab.msg('Every box is already right.');return}
+  board[pick]=sol[pick];given.add(pick);sel=pick;Lab.sfx('hint');
+  const c=render();Lab.msg('💡 That box is '+sol[pick]+'.');
+  if(board.every(x=>x)&&!c.size)win()};
+$('reset').onclick=()=>{if(done)return;board=board.map((v,i)=>given.has(i)?v:0);hist=[];render();Lab.msg('')};
+$('new').onclick=start;
+$('over').onclick=()=>{if(confirm('Start over from the 3×3 grid? Your gems and hearts will be cleared.')){S={...DEF};save();start()}};
+Lab.fit($('play'),(w,h)=>{area={w,h};size()});
+start();
+</script>
+</body></html>

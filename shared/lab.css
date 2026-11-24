@@ -1,0 +1,164 @@
+/* Little Logic Lab: shared styles (Sea glass). Each game sets --accent and --on-accent on body. */
+:root{
+  --page:#DCEBE6; --panel:#C6DBD3; --raised:#EEF6F2; --line:#A9C4BB;
+  --text:#23423B; --text-soft:#4F6E66; --ring:#23423B;
+  --sun:#F3CF6B;       --on-sun:#463500;
+  --pink:#F2A7C6;      --on-pink:#4B1230;
+  --sky:#8FC3E6;       --on-sky:#0E3550;
+  --lavender:#B9A6E3;  --on-lavender:#2B1D50;
+  --lime:#B5D77A;      --on-lime:#263A08;
+  --apricot:#F5B97F;   --on-apricot:#4A2600;
+  --mint:#7CCDB3;      --on-mint:#0E3A30;
+  /* light tints of the six game colours, for backgrounds inside a game (groups, lit bulbs, numbers) */
+  --sun-t:#FBEFC8; --sky-t:#DDEEF9; --pink-t:#FBE1EC; --lavender-t:#ECE6F8; --mint-t:#DAF2E8; --apricot-t:#FCEAD7;
+  --given:#9A6B10;    /* locked / given numbers and rings: deep gold that reads on light cells */
+  --good:var(--mint); --nudge:#D9706F; --star:var(--sun);
+  --r-cell:14px; --r-panel:18px; --r-card:24px; --r-pill:999px;
+  --tap:48px; --gap:8px; --edge:12px; --max:480px;
+  --font:"Nunito",system-ui,sans-serif;
+  --accent:var(--mint); --on-accent:var(--on-mint);
+  color-scheme:light;
+}
+/* Dim: a softer, lower-glare version of the same greens for evenings */
+:root.dim{
+  --page:#BFD3CC; --panel:#ABC4BB; --raised:#D5E4DE; --line:#93B0A6; --text:#1E3832; --text-soft:#43605A;
+}
+
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--page);color:var(--text);font-family:var(--font)}
+body{overscroll-behavior:none}
+/* the Lab's six colours as a thin stripe along the top of every page */
+body::before{content:"";position:fixed;top:0;left:0;right:0;height:5px;z-index:40;pointer-events:none;
+  background:linear-gradient(90deg,var(--sun) 0 16.66%,var(--apricot) 0 33.33%,var(--pink) 0 50%,var(--lavender) 0 66.66%,var(--sky) 0 83.33%,var(--mint) 0)}
+button{font-family:inherit}
+
+/* One-screen game layout */
+.screen{height:100vh;height:100dvh;max-width:var(--max);margin:0 auto;
+  padding:calc(8px + env(safe-area-inset-top)) var(--edge) calc(12px + env(safe-area-inset-bottom));
+  display:flex;flex-direction:column;gap:8px;overflow:hidden;user-select:none;-webkit-user-select:none}
+.hdr{display:flex;align-items:center;gap:10px;min-height:var(--tap);flex:none}
+.hdr .ttl{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.2}
+.hdr{gap:8px}
+.round.small{width:40px;height:40px;font-size:18px}
+.hdr h1{margin:0;font-size:clamp(15px,4.5vw,20px);font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hdr .lvl{font-size:13px;font-weight:600;color:var(--text-soft);white-space:nowrap}
+.home-btn{height:var(--tap);flex:none;display:inline-flex;align-items:center;gap:5px;padding:0 12px 0 10px;border-radius:var(--r-pill);
+  background:var(--raised);color:var(--text);font:800 17px var(--font);text-decoration:none;box-shadow:inset 0 0 0 3px var(--accent)}
+.home-btn span{font-size:22px}
+.home-btn:active{transform:scale(.96)}
+.home-btn:focus-visible{outline:3px solid var(--ring);outline-offset:2px}
+.round{width:var(--tap);height:var(--tap);border-radius:50%;border:0;background:var(--raised);color:var(--text);
+  display:inline-flex;align-items:center;justify-content:center;font-size:22px;text-decoration:none;cursor:pointer;flex:none}
+.round:active,.btn:active,.chip:active{transform:scale(.96)}
+.caption{font-size:14px;font-weight:600;color:var(--text-soft);text-align:center;min-height:19px;flex:none}
+.play{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;position:relative}
+.board{background:var(--panel);border-radius:var(--r-panel);padding:10px}
+.msg{min-height:21px;font-size:15px;font-weight:600;text-align:center;line-height:21px;flex:none}
+.tray{background:var(--panel);border-radius:var(--r-panel);min-height:64px;padding:8px;flex:none;
+  display:flex;align-items:center;justify-content:center;gap:var(--gap);flex-wrap:wrap}
+.tray .empty{font-size:14px;font-weight:600;color:var(--text-soft)}
+.btns{display:flex;gap:var(--gap);justify-content:center;flex:none}
+.btn{min-width:var(--tap);height:var(--tap);border-radius:var(--r-pill);border:0;background:var(--raised);color:var(--text);
+  font:700 17px var(--font);padding:0 14px;cursor:pointer;white-space:nowrap}
+.btn.main{background:var(--accent);color:var(--on-accent);font-size:18px;flex:1;max-width:190px}
+.btn:disabled{opacity:.35;cursor:default}
+.btn.icon{padding:0;font-size:20px}
+.chip{min-width:52px;height:52px;border-radius:var(--r-cell);border:0;background:var(--accent);color:var(--on-accent);
+  font:800 26px var(--font);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0 6px}
+.chip.off{background:var(--raised);color:var(--text)}
+:root.dim .btn.main,:root.dim .chip:not(.off){filter:brightness(.92)}
+
+/* Gentle feedback */
+.wobble{animation:wob .35s}
+@keyframes wob{20%{transform:translateX(-5px)}50%{transform:translateX(5px)}80%{transform:translateX(-3px)}}
+
+/* Shared win card */
+.win-ov{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(35,66,59,.45)}
+.win-ov.on{display:flex}
+.win-card{position:relative;z-index:1;background:var(--raised);border:4px solid var(--accent);border-radius:var(--r-card);padding:22px 18px 18px;
+  width:100%;max-width:340px;text-align:center;animation:pop .45s cubic-bezier(.3,1.5,.5,1)}
+.win-hero{font-size:64px;line-height:1.1}
+.win-card h2{margin:8px 0 4px;font-size:26px;font-weight:800}
+.win-stars{height:50px}
+.win-stars span{font-size:40px;display:inline-block;opacity:0;animation:pop .4s forwards}
+.win-stars span:nth-child(2){animation-delay:.3s}.win-stars span:nth-child(3){animation-delay:.6s}
+.win-lesson{margin:6px 0 0;font-size:15px;font-weight:600;color:var(--text-soft)}
+.win-btns{display:flex;gap:var(--gap);margin-top:16px}
+.win-btns .btn{flex:1;max-width:none}
+.win-sticker{margin:8px 0 0;font-size:14px;font-weight:700;color:var(--text-soft)}
+.win-sticker .ws{font-size:28px;vertical-align:middle;margin-left:4px;display:inline-block;animation:pop .4s .9s both}
+/* sticker book row under each game's title */
+.stk.none{font-size:14px}
+.stk{font-size:18px;white-space:nowrap;overflow:hidden;min-height:24px;line-height:24px}
+/* how-to-play card: same frame as the win card */
+.help-card h2{margin:0 0 10px}
+.help-steps{list-style:none;margin:0;padding:0;text-align:left;display:flex;flex-direction:column;gap:10px}
+.help-steps li{display:flex;align-items:center;gap:12px;font-size:16px;font-weight:700;line-height:1.3}
+.help-steps .hi{flex:none;width:48px;height:48px;border-radius:var(--r-cell);background:var(--panel);display:flex;align-items:center;justify-content:center;font-size:24px}
+.help-extra{margin-top:6px}
+/* ---------- how-to-play animations: a 👆 finger plays a tiny round, over and over ---------- */
+.demo{position:relative;width:240px;height:150px;margin:2px auto 0;text-align:left}
+.demo>*{position:absolute;left:0;top:0}
+.demo .tl{width:60px;height:60px;border-radius:12px;background:var(--panel);display:flex;align-items:center;justify-content:center;font:800 30px var(--font)}
+.demo .ch{width:40px;height:40px;border-radius:10px;background:var(--panel);display:flex;align-items:center;justify-content:center;font:800 20px var(--font)}
+.demo .fin{font-size:30px;line-height:1;z-index:5;opacity:0;pointer-events:none}
+.demo svg line{stroke-linecap:round}
+.demo-cap{margin:8px 0 2px;font-size:16px;font-weight:800}
+/* Light the Bulbs: tap the middle piece, it turns, power reaches the bulb (4 s) */
+.d-lb .fin{animation:lb-fin 4s infinite}
+.d-lb .rot{animation:lb-rot 4s infinite}
+.d-lb line{stroke-width:16;animation:lb-wire 4s infinite}
+.d-lb .bulb{font-size:28px;animation:lb-bulb 4s infinite}
+.d-lb .t3{animation:lb-t3 4s infinite}
+@keyframes lb-fin{0%,10%{opacity:0;transform:translate(150px,130px)}24%{opacity:1;transform:translate(108px,68px)}30%{transform:translate(108px,68px) scale(.85)}35%{transform:translate(108px,68px)}55%,100%{opacity:0;transform:translate(160px,130px)}}
+@keyframes lb-rot{0%,30%{transform:rotate(90deg)}38%,100%{transform:rotate(0)}}
+@keyframes lb-wire{0%,38%{stroke:var(--line)}42%,94%{stroke:#E2A92A}100%{stroke:var(--line)}}
+@keyframes lb-bulb{0%,40%{filter:grayscale(1) opacity(.5)}44%,94%{filter:none}100%{filter:grayscale(1) opacity(.5)}}
+@keyframes lb-t3{0%,40%,100%{background:var(--panel)}44%,94%{background:var(--pink-t);box-shadow:inset 0 0 0 3px var(--pink)}}
+/* Number Chips and Sudoku: tap a box, tap a number, it appears (4.5 s) */
+.d-nc .fin,.d-sd .fin{animation:nc-fin 4.5s infinite}
+.d-nc .pick,.d-sd .pick{animation:nc-pick 4.5s infinite}
+.d-nc .num,.d-sd .num{animation:nc-num 4.5s infinite}
+.d-nc .c2{animation:nc-chip 4.5s infinite}
+.d-nc .lab{animation:nc-lab 4.5s infinite}
+.d-sd .c2{animation:sd-chip 4.5s infinite}
+.d-sd .pick{animation:nc-pick 4.5s infinite,sd-cell 4.5s infinite}
+@keyframes nc-fin{0%,8%{opacity:0;transform:translate(176px,132px)}20%{opacity:1;transform:translate(138px,30px)}25%{transform:translate(138px,30px) scale(.85)}29%{transform:translate(138px,30px)}45%{transform:translate(114px,104px)}50%{transform:translate(114px,104px) scale(.85)}54%{transform:translate(114px,104px)}70%,100%{opacity:0;transform:translate(176px,132px)}}
+@keyframes nc-pick{0%,24%,58%,100%{box-shadow:none}26%,56%{box-shadow:inset 0 0 0 3px var(--ring)}}
+@keyframes nc-num{0%,51%{opacity:0}54%,94%{opacity:1}100%{opacity:0}}
+@keyframes nc-chip{0%,49%,60%,100%{background:var(--panel)}51%,56%{background:var(--lavender)}}
+@keyframes nc-lab{0%,52%,100%{background:var(--panel);color:var(--text)}56%,94%{background:var(--mint);color:var(--on-mint)}}
+@keyframes sd-chip{0%,49%,60%,100%{box-shadow:none}51%,56%{box-shadow:0 0 0 3px var(--ring)}}
+@keyframes sd-cell{0%,51%,100%{background:var(--panel)}54%,94%{background:var(--sky-t)}}
+/* Lost Rovers: drag a rover onto the grid, then cross out an empty box (6 s) */
+.d-lr .ok{animation:lr-ok 6s infinite}
+.d-lr .x{font-size:20px;font-weight:800;animation:lr-x 6s infinite}
+.d-lr .zone{animation:lr-zone 6s infinite}
+/* Lost Rovers runs 6 s: drag in (to 45%), numbers turn mint, then the finger taps the far-left box and a ✖ appears */
+.d-lr .rov{animation:lr-rov 6s infinite}
+.d-lr .fin{animation:lr-fin 6s infinite}
+@keyframes lr-rov{0%{opacity:0;transform:translate(70px,98px)}5%,18%{opacity:1;transform:translate(70px,98px)}45%,94%{opacity:1;transform:translate(144px,40px)}99%,100%{opacity:0;transform:translate(144px,40px)}}
+@keyframes lr-fin{0%,8%{opacity:0;transform:translate(76px,110px)}14%{opacity:1;transform:translate(76px,110px)}18%{transform:translate(76px,110px) scale(.85)}45%{transform:translate(150px,52px) scale(.85)}50%{opacity:1;transform:translate(150px,52px)}64%{transform:translate(58px,58px)}69%{transform:translate(58px,58px) scale(.85)}73%{opacity:1;transform:translate(58px,58px)}84%,100%{opacity:0;transform:translate(110px,120px)}}
+@keyframes lr-ok{0%,47%,100%{background:transparent;color:var(--text)}51%,94%{background:var(--mint);color:var(--on-mint)}}
+@keyframes lr-x{0%,69%,100%{opacity:0}71%,94%{opacity:1}}
+@keyframes lr-zone{0%,45%,100%{background:var(--panel);outline:0 dashed transparent}48%,94%{background:transparent;outline:2px dashed var(--line);outline-offset:-4px}}
+/* Star Trails: the rocket visits every dot once, leaving a colourful trail (5 s) */
+.d-st .rk{font-size:26px;line-height:1;animation:st-rk 5s infinite}
+.d-st line{stroke-width:16;stroke-dasharray:1;stroke-dashoffset:1}
+.d-st .s0{animation:st-s0 5s infinite}.d-st .s1{animation:st-s1 5s infinite}.d-st .s2{animation:st-s2 5s infinite}.d-st .s3{animation:st-s3 5s infinite}.d-st .s4{animation:st-s4 5s infinite}
+@keyframes st-rk{0%,10%{transform:translate(27px,20px)}24%{transform:translate(107px,20px)}38%{transform:translate(187px,20px)}52%{transform:translate(187px,95px)}66%{transform:translate(107px,95px)}80%,94%{transform:translate(27px,95px);opacity:1}99%{opacity:0}100%{opacity:0;transform:translate(27px,20px)}}
+@keyframes st-s0{0%,10%{stroke-dashoffset:1}24%,94%{stroke-dashoffset:0}100%{stroke-dashoffset:1}}
+@keyframes st-s1{0%,24%{stroke-dashoffset:1}38%,94%{stroke-dashoffset:0}100%{stroke-dashoffset:1}}
+@keyframes st-s2{0%,38%{stroke-dashoffset:1}52%,94%{stroke-dashoffset:0}100%{stroke-dashoffset:1}}
+@keyframes st-s3{0%,52%{stroke-dashoffset:1}66%,94%{stroke-dashoffset:0}100%{stroke-dashoffset:1}}
+@keyframes st-s4{0%,66%{stroke-dashoffset:1}80%,94%{stroke-dashoffset:0}100%{stroke-dashoffset:1}}
+@media (prefers-reduced-motion: reduce){.demo *{animation-duration:12s!important}}
+.help-extra .link{background:none;border:0;color:var(--text-soft);font:600 13px var(--font);text-decoration:underline;cursor:pointer;padding:6px}
+.conf{position:fixed;top:0;left:0;z-index:0;pointer-events:none;will-change:transform}
+@keyframes pop{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes fall{to{transform:translateY(110vh) rotate(540deg)}}
+
+@media (prefers-reduced-motion: reduce){
+  .wobble,.win-card,.win-stars span{animation:none!important;opacity:1}
+  *{transition:none!important}
+}

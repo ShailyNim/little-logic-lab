@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#DCEBE6">
+<title>Lost Rovers · Little Logic Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/lab.css">
+<script src="../shared/lab.js"></script>
+<style>
+body{--accent:var(--sky);--on-accent:var(--on-sky);--g:4px}
+#g{position:relative;display:grid;grid-template-columns:repeat(var(--k),var(--s));gap:var(--g)}
+#g>.x{width:var(--s);height:var(--s);display:flex;align-items:center;justify-content:center;line-height:1}
+.lab{font-weight:700;color:var(--text-soft);font-size:max(13px,calc(var(--s)*.32))}
+.num{font-weight:800;font-size:calc(var(--s)*.5);border-radius:var(--r-cell);transition:background .3s}
+.num.ok{background:var(--mint);color:var(--on-mint)}
+.num.over{box-shadow:inset 0 0 0 3px var(--nudge)}
+.cell{background:var(--raised);border-radius:var(--r-cell);cursor:pointer;touch-action:none;
+  font-size:calc(var(--s)*.4);font-weight:800;color:var(--text-soft);transition:background .2s}
+/* parking space: the ring of boxes around a rover that no other rover may use */
+.cell.zone{background:transparent;outline:2px dashed var(--line);outline-offset:-5px;cursor:default}
+.cell.pv-ok{box-shadow:inset 0 0 0 3px var(--mint)}
+.cell.pv-bad{box-shadow:inset 0 0 0 3px var(--nudge)}
+/* a rover is one vehicle drawing over a soft blue pad that shows exactly which boxes it covers;
+   the invisible .seg boxes on top only tell us which box a finger grabbed */
+.rv{position:absolute;display:flex;gap:var(--g);background:rgba(143,195,230,.3);border-radius:calc(var(--s)*.3);touch-action:none;cursor:grab;
+  transition:left .15s,top .15s}
+.rv.v{flex-direction:column}
+.rv .seg{width:var(--s);height:var(--s);position:relative;z-index:1}
+.rv svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
+.rv.lock{box-shadow:inset 0 0 0 3px var(--given);cursor:default}
+#tray{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;align-items:center;flex:1;--s:36px}
+#tray .rv{position:relative;cursor:pointer}
+#tray .rv.v{--s:22px}   /* a rover turned in the tray stands upright, smaller so the tray stays short */
+#tray .rv.v.l4{--s:17px}
+#hint{flex:none}
+.ghost{position:fixed!important;pointer-events:none;z-index:20;opacity:.85;transition:none}
+:root.dim .rv{filter:brightness(.9)}
+</style>
+</head><body>
+<main class="screen">
+  <header class="hdr"><a class="home-btn" href="../index.html"><span aria-hidden="true">🏠</span> Home</a><div class="ttl"><h1>Lost Rovers</h1><span class="lvl" id="lv"></span></div></header>
+  <div class="play" id="play"><div class="board" id="bd"><div id="g"></div></div></div>
+  <div class="msg" id="msg" aria-live="polite"></div>
+  <div class="tray"><div id="tray"></div></div>
+  <div class="btns">
+    <button class="btn icon" id="prev" aria-label="Previous level">◀</button>
+    <button class="btn icon" id="hint" aria-label="Hint">💡</button>
+    <button class="btn icon" id="reset" aria-label="Start again">↺</button>
+    <button class="btn main" id="new">New puzzle</button>
+    <button class="btn icon" id="next" aria-label="Next level">▶</button>
+  </div>
+</main>
+<script>
+// n grid size, f rover lengths (1 scout, 2 rover, 3 truck, 4 hauler), r whole rovers shown at the start.
+// Every puzzle must be solvable with one-step moves only (see kidSolve), so a bigger grid only means more to do,
+// never harder thinking.
+const L=[{n:3,f:[1,1],r:1},{n:4,f:[1,1,1],r:1},{n:4,f:[2,1,1],r:1},{n:5,f:[2,2,1],r:1},
+ {n:5,f:[3,2,1],r:0},{n:6,f:[3,2,2,1],r:0},{n:6,f:[4,2,1,1],r:0},{n:6,f:[4,3,2,1],r:0}];
+const NAME={1:'scout',2:'rover',3:'truck',4:'hauler'},COLS='ABCDEF',GID='rovers',G4=4;
+Lab.setupGame({id:GID,
+  demo:'rovers',caption:'Drag rovers in. Tap to cross out.',
+  art:()=>vehicle(2,44,'h').replace('<svg ','<svg style="width:100%;height:100%;overflow:visible" '),
+  stickers:['🤖','🛰️','🪐','🚀','🛸','🌙','☄️','🔭']});
+let lv=Math.min(L.length-1,Lab.game(GID).level||0),P,area={w:300,h:300},S=40;
+const $=i=>document.getElementById(i),rnd=k=>Math.floor(Math.random()*k);
+const R_=(c,n)=>c/n|0;
+
+// ---------- puzzle generator ----------
+function places(n,s){const o=[];for(let r=0;r<n;r++)for(let c=0;c<n;c++){
+  if(c+s<=n)o.push(Array.from({length:s},(_,i)=>r*n+c+i));
+  if(s>1&&r+s<=n)o.push(Array.from({length:s},(_,i)=>(r+i)*n+c));}return o}
+// a placement fits if no cell is, or touches (even at a corner), another rover
+function fits(n,occ,p){return p.every(c=>{const r=R_(c,n),q=c%n;
+  for(let a=-1;a<2;a++)for(let b=-1;b<2;b++){const y=r+a,x=q+b;
+    if(y>=0&&y<n&&x>=0&&x<n&&occ[y*n+x])return false}return true})}
+function layout(n,f){for(let k=0;k<4000;k++){const occ=Array(n*n).fill(0),out=[];let ok=true;
+  for(const s of f){const ps=places(n,s).filter(p=>fits(n,occ,p));if(!ps.length){ok=false;break}
+    const p=ps[rnd(ps.length)];p.forEach(c=>occ[c]=1);out.push(p)}
+  if(ok)return out}return null}
+// Kid-level solver: works the puzzle using only one-step moves a young child can see, never "what if" guessing:
+//  1. a row or column that already has all its rover boxes: the rest of it is empty
+//  2. a row or column whose free boxes exactly match what it still needs: they are all rover
+//  3. the parking space around a rover shown at the start is empty
+//  4. a box that holds a rover has empty corner neighbours (rovers are straight and never touch)
+// Returns the number of rounds it took, or -1 if it gets stuck (the puzzle would need harder thinking).
+// Finishing also proves the answer is the only one.
+function kidSolve(n,rc,cc,given){const st=Array(n*n).fill(-1),inb=(y,x)=>y>=0&&x>=0&&y<n&&x<n;
+  given.forEach(s=>s.forEach(c=>st[c]=1));
+  given.forEach(s=>s.forEach(c=>{const r=R_(c,n),q=c%n;for(let a=-1;a<2;a++)for(let b=-1;b<2;b++)if(inb(r+a,q+b)&&st[(r+a)*n+q+b]==-1)st[(r+a)*n+q+b]=0}));
+  let rounds=0;
+  for(;;){let ch=false;const set=(i,v)=>{if(st[i]==-1){st[i]=v;ch=true}};
+    for(let i=0;i<n*n;i++)if(st[i]==1){const r=R_(i,n),q=i%n;for(const[a,b]of[[-1,-1],[-1,1],[1,-1],[1,1]])if(inb(r+a,q+b))set((r+a)*n+q+b,0)}
+    for(let k=0;k<n;k++)for(const[line,need]of[[[...Array(n)].map((_,j)=>k*n+j),rc[k]],[[...Array(n)].map((_,j)=>j*n+k),cc[k]]]){
+      const have=line.filter(i=>st[i]==1).length,free=line.filter(i=>st[i]==-1);
+      if(have==need)free.forEach(i=>set(i,0));else if(have+free.length==need)free.forEach(i=>set(i,1))}
+    if(!ch)break;rounds++}
+  return st.every(v=>v!=-1)?rounds:-1}
+const posOf=(n,cells)=>({r:R_(cells[0],n),c:cells[0]%n,dir:cells.length>1&&cells[1]-cells[0]!=1?'v':'h'});
+
+function make(){
+  const d=L[lv],n=d.n,f=[...d.f].sort((a,b)=>b-a);let ships,rev,rc,cc;
+  // try layouts until one can be finished with one-step moves; in the rare case none turns up,
+  // show one more rover at the start rather than hand out a puzzle that needs guessing
+  for(let extra=0;extra<=f.length;extra++){let found=false;
+    for(let t=0;t<300&&!found;t++){
+      ships=layout(n,f);rc=Array(n).fill(0);cc=Array(n).fill(0);
+      ships.flat().forEach(c=>{rc[R_(c,n)]++;cc[c%n]++});
+      rev=[...ships].sort(()=>Math.random()-.5).slice(0,Math.min(f.length,d.r+extra));
+      found=kidSolve(n,rc,cc,rev)>=0}
+    if(found)break}
+  // the fleet: one entry per rover; pos = where the child parked it (null = in the tray)
+  const fleet=f.map((len,k)=>({k,len,pos:null,lock:false}));
+  rev.forEach(cells=>{const it=fleet.find(x=>x.len==cells.length&&!x.lock);it.pos=posOf(n,cells);it.lock=true});
+  P={n,f,ships,rc,cc,fleet,marks:new Set(),done:false};
+  Lab.setLevel(GID,lv);Lab.hideWin();
+  $('lv').textContent='Level '+(lv+1)+' of '+L.length;
+  $('prev').disabled=lv==0;$('next').disabled=lv==L.length-1;
+  Lab.msg(intro());draw()}
+const intro=()=>lv<2?'Drag rovers in. Numbers count their boxes.':'Tap a rover to turn it. Rovers need space.';
+
+// ---------- rules for the child's moves ----------
+const cellsOf=(len,p)=>Array.from({length:len},(_,i)=>p.dir=='h'?p.r*P.n+p.c+i:(p.r+i)*P.n+p.c);
+const inside=(len,p)=>p.r>=0&&p.c>=0&&(p.dir=='h'?p.c+len<=P.n&&p.r<P.n:p.r+len<=P.n&&p.c<P.n);
+function taken(except){const occ=new Set();P.fleet.forEach(it=>{if(it.pos&&it!==except)cellsOf(it.len,it.pos).forEach(c=>occ.add(c))});return occ}
+function zoneOf(occ){const n=P.n,z=new Set();occ.forEach(c=>{const r=R_(c,n),q=c%n;
+  for(let a=-1;a<2;a++)for(let b=-1;b<2;b++){const y=r+a,x=q+b;if(y>=0&&x>=0&&y<n&&x<n&&!occ.has(y*n+x))z.add(y*n+x)}});return z}
+// can this rover park here? not off the grid, not on or beside another rover
+function canPark(it,p){if(!inside(it.len,p))return false;const occ=taken(it),z=zoneOf(occ);
+  return cellsOf(it.len,p).every(c=>!occ.has(c)&&!z.has(c))}
+function park(it,p){it.pos=p;cellsOf(it.len,p).forEach(c=>P.marks.delete(c))}
+// where a parked rover goes when tapped to turn: first around its front box (as before); if that has no room,
+// around the box that was tapped; failing that, the nearest spot pointing the new way that still touches that box.
+function turnSpot(it,tapped){const n=P.n,old=it.pos,nd=old.dir=='h'?'v':'h',X=cellsOf(it.len,old)[Math.min(tapped,it.len-1)],xr=R_(X,n),xc=X%n,best=[];
+  for(let r=0;r<n;r++)for(let c=0;c<n;c++){const p={r,c,dir:nd};if(!canPark(it,p))continue;
+    const cs=cellsOf(it.len,p),dist=Math.min(...cs.map(q=>Math.abs(R_(q,n)-xr)+Math.abs(q%n-xc)));if(dist>1)continue;
+    best.push({p,front:r==old.r&&c==old.c?0:1,dist,off:cs.includes(X)?Math.abs(cs.indexOf(X)-tapped):9})}
+  best.sort((a,b)=>a.front-b.front||a.dist-b.dist||a.off-b.off);
+  return best.length?best[0].p:null}
+
+// ---------- drawing ----------
+function size(){if(!P)return;const k=P.n+2;
+  S=Math.max(24,Math.min(64,Math.floor((Math.min(area.w,area.h)-20-G4*(k-1))/k)));
+  $('g').style.setProperty('--s',S+'px');$('g').style.setProperty('--k',k)}
+// ---------- vehicle drawings: scout 1, rover 2, truck 3, hauler 4 boxes long ----------
+// Drawn side-on, front (robot cab) at the left over the first box; turned rovers are the same drawing
+// rotated a quarter turn, so the cab sits on the top box.
+const INK='#0E3550',BODY='#8FC3E6',SHADE='#6FA9D3',GLASS='#D7F2E8',SUN='#F3CF6B',LAV='#B9A6E3',MINT='#7CCDB3',HUB='#E3F1FB';
+function vehicle(len,u,dir){
+  const g=G4,W=len*u+(len-1)*g,cx=i=>i*(u+g)+u/2,sw=Math.max(1,u*.05),f=v=>+v.toFixed(1);
+  const R=(x,y,w,h,r,fill,st=1)=>'<rect x="'+f(x)+'" y="'+f(y)+'" width="'+f(w)+'" height="'+f(h)+'" rx="'+f(r)+'" fill="'+fill+'"'+(st?' stroke="'+INK+'" stroke-width="'+f(sw*st)+'"':'')+'/>';
+  const C=(x,y,r,fill,st=1)=>'<circle cx="'+f(x)+'" cy="'+f(y)+'" r="'+f(r)+'" fill="'+fill+'"'+(st?' stroke="'+INK+'" stroke-width="'+f(sw*st)+'"':'')+'/>';
+  const Ln=(x1,y1,x2,y2,w=1)=>'<line x1="'+f(x1)+'" y1="'+f(y1)+'" x2="'+f(x2)+'" y2="'+f(y2)+'" stroke="'+INK+'" stroke-width="'+f(sw*w)+'" stroke-linecap="round"/>';
+  let s='';
+  // wheels: two small ones under a scout, one under each box for longer rovers
+  const wx=len==1?[u*.28,u*.72]:Array.from({length:len},(_,i)=>cx(i));
+  // the deck on top, then the cab and cargo, then the wheels in front
+  // cargo first so the cab overlaps it neatly
+  for(let i=1;i<len;i++){const x=cx(i);
+    const kind=len==2?'dish':len==3?(i==1?'solar':'crate'):(i==1?'crate':i==2?'tank':'drill');
+    const P_=(pts,fill=LAV)=>'<polygon points="'+pts.map(p=>p.map(f).join(',')).join(' ')+'" fill="'+fill+'" stroke="'+INK+'" stroke-width="'+f(sw)+'" stroke-linejoin="round"/>';
+    // dish: a satellite bowl on a post, listening for signals
+    if(kind=='dish'){s+=Ln(x,u*.52,x,u*.36,1.4)+'<path d="M'+f(x-u*.36)+' '+f(u*.1)+' Q'+f(x)+' '+f(u*.6)+' '+f(x+u*.36)+' '+f(u*.1)+' Z" fill="'+LAV+'" stroke="'+INK+'" stroke-width="'+f(sw)+'" stroke-linejoin="round"/>'+Ln(x,u*.32,x+u*.14,u*.08)+C(x+u*.14,u*.07,u*.065,SUN)}
+    // solar panel: a tilted lavender panel with grid lines
+    if(kind=='solar'){s+=Ln(x,u*.52,x,u*.42,1.4)+P_([[x-u*.42,u*.42],[x+u*.38,u*.42],[x+u*.28,u*.08],[x-u*.32,u*.08]])+Ln(x-u*.02,u*.09,x-u*.02,u*.41,.7)+Ln(x-u*.37,u*.25,x+u*.33,u*.25,.7)}
+    // crate: a sunny yellow box with a cross
+    if(kind=='crate'){s+=R(x-u*.38,u*.08,u*.76,u*.46,u*.07,SUN)+Ln(x-u*.38,u*.08,x+u*.38,u*.54,.7)+Ln(x+u*.38,u*.08,x-u*.38,u*.54,.7)}
+    // tank: a rounded mint water tank with bands
+    if(kind=='tank'){s+=R(x-u*.42,u*.12,u*.84,u*.42,u*.2,MINT)+Ln(x-u*.14,u*.13,x-u*.14,u*.53,.7)+Ln(x+u*.14,u*.13,x+u*.14,u*.53,.7)}
+    // drill: an arm with a yellow drill bit, for digging up rocks
+    if(kind=='drill'){s+=Ln(x-u*.26,u*.5,x+u*.12,u*.16,2.6)+P_([[x+u*.02,u*.14],[x+u*.26,u*.22],[x+u*.42,u*.02]],SUN)+C(x-u*.26,u*.5,u*.08,SHADE)}}
+  // deck (body) across the whole rover, with a darker stripe
+  s+=R(u*.04,u*.5,W-u*.08,u*.28,u*.13,BODY)+R(u*.12,u*.66,W-u*.24,u*.05,u*.025,SHADE,0);
+  // cab with a robot face on the first box, antenna on top
+  s+=Ln(u*.7,u*.14,u*.8,u*.03,1.1)+C(u*.8,u*.04,u*.065,SUN);
+  s+=R(u*.08,u*.1,u*.76,u*.48,u*.2,BODY)+R(u*.16,u*.18,u*.58,u*.26,u*.1,GLASS,.7)+C(u*.35,u*.31,u*.055,INK,0)+C(u*.55,u*.31,u*.055,INK,0);
+  s+=C(u*.06,u*.62,u*.055,SUN,.7);   // headlight
+  s+=wx.map(x=>C(x,u*.84,u*.15,INK,0)+C(x,u*.84,u*.065,HUB,0)).join('');
+  const inner=dir=='v'?'<g transform="translate('+f(u)+',0) rotate(90)">'+s+'</g>':s;
+  return '<svg viewBox="0 0 '+f(dir=='v'?u:W)+' '+f(dir=='v'?W:u)+'" aria-hidden="true">'+inner+'</svg>'}
+function roverHTML(it,cls,extra){
+  const segs=Array.from({length:it.len},()=>'<span class="seg"></span>').join('');
+  const dir=cls=='tp'?(it.trayDir||'h'):(it.pos?it.pos.dir:'h');
+  const u=cls=='tp'?(dir=='h'?36:it.len==4?17:22):S;
+  return '<div class="rv '+dir+' l'+it.len+(it.lock?' lock':'')+'" data-k="'+it.k+'" '+(extra||'')+' role="button" aria-label="'+NAME[it.len]+', '+it.len+' long">'+vehicle(it.len,u,dir)+segs+'</div>'}
+function cur(){const{n}=P,r=Array(n).fill(0),c=Array(n).fill(0);taken().forEach(i=>{r[R_(i,n)]++;c[i%n]++});return{r,c}}
+function draw(){
+  const{n,rc,cc}=P,k=cur(),occ=taken(),z=zoneOf(occ);size();
+  const st=(have,need)=>have==need?'ok':have>need?'over':'';
+  let h='<div class="x"></div><div class="x"></div>'+[...Array(n)].map((_,c)=>'<div class="x lab">'+COLS[c]+'</div>').join('');
+  h+='<div class="x"></div><div class="x"></div>'+cc.map((v,c)=>'<div class="x num '+st(k.c[c],v)+'">'+v+'</div>').join('');
+  for(let r=0;r<n;r++){
+    h+='<div class="x lab">'+(r+1)+'</div><div class="x num '+st(k.r[r],rc[r])+'">'+rc[r]+'</div>';
+    for(let c=0;c<n;c++){const i=r*n+c;
+      h+='<div class="x cell'+(z.has(i)?' zone':'')+'" data-i="'+i+'" aria-label="'+COLS[c]+(r+1)+'">'+(P.marks.has(i)&&!z.has(i)&&!occ.has(i)?'✖':'')+'</div>'}}
+  // parked rovers sit on top of the boxes they cover
+  P.fleet.forEach(it=>{if(!it.pos)return;const x=(it.pos.c+2)*(S+G4),y=(it.pos.r+2)*(S+G4);
+    h+=roverHTML(it,'',' style="left:'+x+'px;top:'+y+'px"')});
+  $('g').innerHTML=h;
+  const left=P.fleet.filter(it=>!it.pos);
+  $('tray').innerHTML=left.length?left.map(it=>roverHTML(it,'tp','data-tray="1"')).join(''):'<span class="empty">All rovers are parked</span>'}
+
+// ---------- touch: drag rovers, tap to turn, tap a box for ✖ ----------
+let D=null,ghost=null;
+function hoverCell(x,y){const b=$('g').getBoundingClientRect(),step=S+G4;
+  return{r:Math.floor((y-b.top)/step)-2,c:Math.floor((x-b.left)/step)-2}}
+function target(e){const h=hoverCell(e.clientX,e.clientY);
+  return{p:{r:h.r-(D.dir=='v'?D.grab:0),c:h.c-(D.dir=='h'?D.grab:0),dir:D.dir},onGrid:h.r>=0&&h.c>=0&&h.r<P.n&&h.c<P.n}}
+function preview(t){document.querySelectorAll('.pv-ok,.pv-bad').forEach(el=>el.classList.remove('pv-ok','pv-bad'));
+  if(!t||!t.onGrid)return;const it=P.fleet[D.k],ok=canPark(it,t.p);
+  for(let i=0;i<it.len;i++){const r=t.p.r+(t.p.dir=='v'?i:0),c=t.p.c+(t.p.dir=='h'?i:0);
+    if(r<0||c<0||r>=P.n||c>=P.n)continue;const el=document.querySelector('.cell[data-i="'+(r*P.n+c)+'"]');if(el)el.classList.add(ok?'pv-ok':'pv-bad')}}
+addEventListener('pointerdown',e=>{
+  if(!P||P.done||!e.target.closest)return;
+  const rv=e.target.closest('.rv'),cell=e.target.closest('.cell');
+  if(rv){const it=P.fleet[+rv.dataset.k];if(it.lock){Lab.msg('That rover was found for you.');return}
+    const segs=[...rv.querySelectorAll('.seg')],grab=Math.max(0,segs.indexOf(e.target.closest('.seg')));
+    D={k:it.k,fromTray:!!rv.dataset.tray,dir:rv.dataset.tray?(it.trayDir||'h'):it.pos.dir,grab,x:e.clientX,y:e.clientY,moved:false};e.preventDefault()}
+  else if(cell){D={cell:+cell.dataset.i,x:e.clientX,y:e.clientY,moved:false};e.preventDefault()}});
+addEventListener('pointermove',e=>{
+  if(!D||D.k==null)return;
+  if(!D.moved&&Math.hypot(e.clientX-D.x,e.clientY-D.y)<8)return;
+  D.moved=true;const it=P.fleet[D.k];
+  if(!ghost){const w=document.createElement('div');w.innerHTML=roverHTML({...it,pos:{dir:D.dir}},'');ghost=w.firstChild;ghost.classList.add('ghost');
+    ghost.style.setProperty('--s',S+'px');document.body.appendChild(ghost)}
+  const off=D.grab*(S+G4)+S/2;
+  ghost.style.left=(e.clientX-(D.dir=='h'?off:S/2))+'px';ghost.style.top=(e.clientY-(D.dir=='v'?off:S/2))+'px';
+  preview(target(e))});
+addEventListener('pointerup',e=>{
+  if(!D)return;const d=D;D=null;if(ghost){ghost.remove();ghost=null}preview(null);
+  if(d.cell!=null){if(d.moved)return;const occ=taken();if(occ.has(d.cell)||zoneOf(occ).has(d.cell))return;
+    P.marks.has(d.cell)?P.marks.delete(d.cell):P.marks.add(d.cell);Lab.sfx('mark');draw();return}
+  const it=P.fleet[d.k];
+  if(!d.moved){
+    if(it.len==1){if(d.fromTray)Lab.msg('Drag the scout onto the grid.');return}
+    if(d.fromTray){   // turn it in the tray, so it drops onto the grid the way it now points
+      it.trayDir=(it.trayDir||'h')=='h'?'v':'h';Lab.sfx('turn');draw();
+      Lab.msg('Now it goes '+(it.trayDir=='v'?'down':'across')+'. Drag it in.');return}
+    const p=turnSpot(it,d.grab);
+    if(p){park(it,p);Lab.sfx('turn');Lab.msg('');draw();autoCheck()}
+    else{Lab.msg('No room to turn it here.');Lab.wobble(document.querySelector('#g .rv[data-k="'+it.k+'"]'))}
+    return}
+  D={...d};const t=target(e);D=null;
+  if(!t.onGrid){if(!d.fromTray){it.trayDir=it.pos.dir;it.pos=null;Lab.msg('');draw()}return}   // dropped off the grid: back to the tray, still pointing the same way
+  if(canPark(it,t.p)){park(it,t.p);Lab.sfx('place');Lab.msg('');draw();autoCheck()}
+  else{Lab.msg(inside(it.len,t.p)?'No room there. Rovers need space around them.':'That spot is off the grid.');Lab.wobble($('bd'))}});
+addEventListener('pointercancel',()=>{if(ghost){ghost.remove();ghost=null}D=null;preview(null)});
+
+// ---------- buttons ----------
+function problem(){const{n,rc,cc}=P,k=cur();
+  const inTray=P.fleet.filter(it=>!it.pos).length;
+  for(let r=0;r<n;r++)if(k.r[r]>rc[r])return'Row '+(r+1)+' has '+(k.r[r]-rc[r])+' too many.';
+  for(let c=0;c<n;c++)if(k.c[c]>cc[c])return'Column '+COLS[c]+' has '+(k.c[c]-cc[c])+' too many.';
+  if(inTray)return inTray==1?'One rover is still in the tray.':inTray+' rovers are still in the tray.';
+  for(let r=0;r<n;r++)if(k.r[r]<rc[r])return'Row '+(r+1)+' needs '+(rc[r]-k.r[r])+' more.';
+  for(let c=0;c<n;c++)if(k.c[c]<cc[c])return'Column '+COLS[c]+' needs '+(cc[c]-k.c[c])+' more.';
+  return''}
+// no Check button: the game wins by itself as soon as every rover is right, like the other games.
+// When every rover is parked but something is off, it says gently what to look at.
+function autoCheck(){if(P.done)return;const e=problem();
+  if(!e){P.done=true;Lab.msg('All rovers found!');setTimeout(celebrate,800);return}
+  if(!P.fleet.some(it=>!it.pos)){Lab.msg('Nearly! '+e);Lab.wobble($('bd'))}}
+function celebrate(){
+  const last=lv==L.length-1;
+  Lab.win({game:GID,hero:'🤖',title:last?'You finished all the levels!':null,
+    lesson:'Row and column numbers point to every rover.',
+    next:last?null:()=>{lv++;make()},again:make})}
+// hint: park one rover where it really belongs, and send back any rover in its way
+$('hint').onclick=()=>{if(P.done)return;const n=P.n;
+  const locked=new Set();P.fleet.forEach(it=>{if(it.lock)cellsOf(it.len,it.pos).forEach(c=>locked.add(c))});
+  const ship=P.ships.find(s=>!s.every(c=>locked.has(c)));
+  if(!ship){Lab.msg('Every rover is already showing.');return}
+  const p=posOf(n,ship),same=it=>it.pos&&it.pos.r==p.r&&it.pos.c==p.c&&(it.len==1||it.pos.dir==p.dir);
+  const it=P.fleet.find(x=>!x.lock&&x.len==ship.length&&same(x))||P.fleet.find(x=>!x.lock&&x.len==ship.length&&!x.pos)||P.fleet.find(x=>!x.lock&&x.len==ship.length);
+  it.pos=null;it.lock=true;
+  P.fleet.forEach(o=>{if(o!==it&&o.pos&&!o.lock&&!canParkWith(o,ship))o.pos=null});
+  Lab.sfx('hint');park(it,p);draw();Lab.msg('💡 A '+NAME[ship.length]+' is parked at '+COLS[p.c]+(p.r+1)+'.');autoCheck()};
+function canParkWith(o,ship){const n=P.n,cs=cellsOf(o.len,o.pos);
+  return cs.every(c=>ship.every(s=>Math.abs(R_(s,n)-R_(c,n))>1||Math.abs(s%n-c%n)>1))}
+$('reset').onclick=()=>{if(P.done)return;P.fleet.forEach(it=>{if(!it.lock)it.pos=null});P.marks.clear();draw();Lab.msg(intro())};
+$('prev').onclick=()=>{lv=Math.max(0,lv-1);make()};
+$('next').onclick=()=>{lv=Math.min(L.length-1,lv+1);make()};
+$('new').onclick=make;
+Lab.fit($('play'),(w,h)=>{area={w,h};if(P)draw()});
+make();
+</script>
+</body></html>
