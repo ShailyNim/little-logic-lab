@@ -93,6 +93,28 @@ function count(n,cages){const cof=cofOf(n,cages),g=Array(n*n).fill(0),rs=Array(n
       rem[k]++;sum[k]-=v;g[i]=0}})(0);
   return cnt}
 
+// Kid-level solver: fills boxes using only the simple rules a young child can see, one box at a time:
+// last one missing, once per row and column, a group's sum or difference on its own, or a group clue and the
+// row/column together (the same rules the logic tracker looks for). Returns the boxes it could not fill.
+function kidSolveNC(n,cages,vals){const v=vals.slice(),cof=cofOf(n,cages);
+  const row=i=>[...Array(n)].map((_,j)=>(i/n|0)*n+j),col=i=>[...Array(n)].map((_,j)=>j*n+i%n);
+  function rcCands(i){const u=new Set([...row(i),...col(i)].filter(j=>j!=i).map(j=>v[j]).filter(Boolean));return[...Array(n)].map((_,k)=>k+1).filter(x=>!u.has(x))}
+  function cageCands(i){const cg=cages[cof[i]],cs=cg.cells,out=new Set(),cur=cs.map(c=>v[c]);if(cg.op=='=')return[cg.t];
+    const free=cs.map((c,k)=>cur[k]?-1:k).filter(k=>k>=0);
+    (function go(f){if(f==free.length){
+        if(!cs.every((c,k)=>cs.every((d,m)=>m<=k||!(cur[k]==cur[m]&&((c/n|0)==(d/n|0)||c%n==d%n)))))return;
+        if(cg.op=='+'?cur.reduce((a,b)=>a+b,0)==cg.t:Math.abs(cur[0]-cur[1])==cg.t)out.add(cur[cs.indexOf(i)]);return}
+      for(let x=1;x<=n;x++){cur[free[f]]=x;go(f+1)}cur[free[f]]=0})(0);
+    return[...out]}
+  function forced(i){
+    for(const line of[row(i),col(i)]){const o=line.filter(j=>j!=i).map(j=>v[j]);if(o.every(Boolean)&&new Set(o).size==n-1)
+      return[...Array(n)].map((_,k)=>k+1).find(x=>!o.includes(x))}
+    const rc=rcCands(i);if(rc.length==1)return rc[0];
+    const cc=cageCands(i);if(cc.length==1)return cc[0];
+    const both=cc.filter(x=>rc.includes(x));if(both.length==1)return both[0];
+    return 0}
+  for(let moved=true;moved;){moved=false;for(let i=0;i<n*n;i++)if(!v[i]){const x=forced(i);if(x){v[i]=x;moved=true}}}
+  return[...Array(n*n).keys()].filter(i=>!v[i])}
 function gen(d){const n=d.n;
   for(let t=0;;t++){const sol=latin(n);let cages=part(n,sol,d),sp=0;
     while(count(n,cages)>1){
@@ -100,14 +122,21 @@ function gen(d){const n=d.n;
       const m=cages.filter(c=>c.cells.length>1);if(!m.length)break;
       const x=m[rnd(m.length)];cages=cages.filter(c=>c!=x);
       x.cells.forEach(c=>cages.push({cells:[c],op:'=',t:sol[c]}));sp++}
-    if(count(n,cages)==1)return{sol,cages}}}
+    if(count(n,cages)!=1)continue;
+    // keep only puzzles a child can finish with simple, one-step thinking
+    const start=sol.map((s,i)=>cages.some(c=>c.op=='='&&c.cells[0]==i)?s:0);
+    if(!kidSolveNC(n,cages,start).length)return{sol,cages,extra:[]};
+    // after many tries, rather than hand out a puzzle that needs guessing, fill in the box the solver got stuck on
+    if(t>=80){const extra=[];let left=kidSolveNC(n,cages,start);
+      while(left.length){const c=left[0];extra.push(c);start[c]=sol[c];left=kidSolveNC(n,cages,start)}
+      return{sol,cages,extra}}}}
 
 function rule(){const o=L[lv].ops;
   return o=='a'?'5+ means the group adds up to 5.':o=='s'?'2− means the two numbers are 2 apart.':'5+ adds up to 5. 1− means 1 apart.'}
 
 function make(){
   const d=L[lv],g=gen(d),n=d.n,cof=cofOf(n,g.cages),giv=new Set();
-  g.cages.forEach(c=>{if(c.op=='=')giv.add(c.cells[0])});
+  g.cages.forEach(c=>{if(c.op=='=')giv.add(c.cells[0])});g.extra.forEach(c=>giv.add(c));
   // colour groups so touching groups differ
   const cc=Array(g.cages.length).fill(-1);
   g.cages.forEach((cg,k)=>{const bad=new Set();cg.cells.forEach(c=>nbrs(c,n).forEach(u=>{if(cof[u]!=k&&cc[cof[u]]>=0)bad.add(cc[cof[u]])}));

@@ -76,9 +76,28 @@ function ok(g,i,v){const r=i/n|0,c=i%n,{boxW,boxH}=cfg;
   for(let y=0;y<boxH;y++)for(let x=0;x<boxW;x++)if(g[(br+y)*n+bc+x]==v)return false;
   return true}
 
+// Kid-level solver: fills boxes using only the simple rules a young child can see (the same rules the logic
+// tracker looks for): last one missing, once per row and column (and box on 4×4), and only place for it in a line.
+// Returns the boxes it could not fill.
+function kidSolveSd(vals){const v=vals.slice(),box=cfg.boxW>1&&cfg.boxH>1;
+  const row=i=>[...Array(n)].map((_,j)=>(i/n|0)*n+j),col=i=>[...Array(n)].map((_,j)=>j*n+i%n);
+  const bx=i=>{const r=i/n|0,c=i%n,br=r-r%cfg.boxH,bc=c-c%cfg.boxW,o=[];for(let y=0;y<cfg.boxH;y++)for(let x=0;x<cfg.boxW;x++)o.push((br+y)*n+bc+x);return o};
+  const lines=i=>[row(i),col(i)].concat(box?[bx(i)]:[]);
+  const cand=i=>{const u=new Set(lines(i).flat().filter(j=>j!=i).map(j=>v[j]).filter(Boolean));return[...Array(n)].map((_,k)=>k+1).filter(x=>!u.has(x))};
+  for(let moved=true;moved;){moved=false;
+    for(let i=0;i<n*n;i++){if(v[i])continue;
+      const c=cand(i);if(c.length==1){v[i]=c[0];moved=true;continue}       // last one missing / once per row, column (and box)
+      for(const L of lines(i)){let done=false;for(const x of c){if(L.some(j=>v[j]==x))continue;   // only place for x in this line
+        if(L.filter(j=>!v[j]&&cand(j).includes(x)).length==1){v[i]=x;moved=true;done=true;break}}if(done)break}}}
+  return[...Array(n*n).keys()].filter(i=>!v[i])}
 function start(){
   n=S.size;cfg=M[n];sol=Array(n*n).fill(0);fillGrid(sol);
-  const keep=new Set([...Array(n*n).keys()].sort(()=>Math.random()-.5).slice(0,cfg.steps[S.step]));
+  // choose which numbers to show so the puzzle can be finished with simple, one-step thinking
+  // (this also makes sure it has only one answer); after many tries, show the number where it gets stuck
+  let keep;
+  for(let t=0;t<120;t++){keep=new Set([...Array(n*n).keys()].sort(()=>Math.random()-.5).slice(0,cfg.steps[S.step]));
+    if(!kidSolveSd(sol.map((v,i)=>keep.has(i)?v:0)).length)break;
+    if(t==119){let left;while((left=kidSolveSd(sol.map((v,i)=>keep.has(i)?v:0))).length)keep.add(left[0])}}
   board=sol.map((v,i)=>keep.has(i)?v:0);given=keep;
   sel=[...Array(n*n).keys()].find(i=>!given.has(i));hist=[];errors=0;hints=0;done=false;secs=0;
   Lab.hideWin();$('grid').classList.remove('solved');
