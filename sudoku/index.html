@@ -62,7 +62,7 @@ let S;try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){}
 S=Object.assign({},DEF,S||{});if(!M[S.size])S={...DEF};
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
 
-let n,cfg,sol,board,given,sel=-1,hist=[],timer=null,secs=0,errors=0,done=false,area={w:300,h:300};
+let n,cfg,sol,board,given,sel=-1,hist=[],timer=null,secs=0,errors=0,hints=0,done=false,area={w:300,h:300};
 
 function fillGrid(g){ // random full grid that follows row, column and box rules
   for(let i=0;i<n*n;i++)if(!g[i]){
@@ -80,7 +80,7 @@ function start(){
   n=S.size;cfg=M[n];sol=Array(n*n).fill(0);fillGrid(sol);
   const keep=new Set([...Array(n*n).keys()].sort(()=>Math.random()-.5).slice(0,cfg.steps[S.step]));
   board=sol.map((v,i)=>keep.has(i)?v:0);given=keep;
-  sel=[...Array(n*n).keys()].find(i=>!given.has(i));hist=[];errors=0;done=false;secs=0;
+  sel=[...Array(n*n).keys()].find(i=>!given.has(i));hist=[];errors=0;hints=0;done=false;secs=0;
   Lab.hideWin();$('grid').classList.remove('solved');
   $('lv').textContent=n+'×'+n+' · step '+(S.step+1)+' of 3';
   Lab.msg('Each number once in every row'+(cfg.boxH>1?', column and box.':' and column.'));
@@ -91,7 +91,7 @@ const mmss=t=>String(t/60|0).padStart(2,'0')+':'+String(t%60).padStart(2,'0');
 function stats(){$('stats').innerHTML='<span>⏱ <b>'+mmss(secs)+'</b></span><span>🏆 '+S.wins+'/'+cfg.need+' to the next step</span>'}
 
 function size(){if(!n)return;const box=cfg.boxW>1&&cfg.boxH>1,g=box?4:6,extra=box?8:0;
-  const s=Math.max(44,Math.min(84,Math.floor((Math.min(area.w,area.h)-20-(n-1)*g-extra)/n)));
+  const s=Math.max(44,Math.min(120,Math.floor((Math.min(area.w,area.h)-20-(n-1)*g-extra)/n)));
   $('grid').style.setProperty('--s',s+'px');$('grid').style.setProperty('--g',g+'px')}
 
 function clashes(){const c=new Set();
@@ -132,10 +132,12 @@ const colHas=(i,v)=>{const c=i%n;for(let k=0;k<n;k++)if(k*n+c!=i&&board[k*n+c]==
 function win(){
   done=true;clearInterval(timer);$('grid').classList.add('solved');
   let reward='😊';
-  if(errors==0&&(S.best==null||secs<=S.best)){reward='💎';S.gems++}
+  // a puzzle finished with any 💡 hint earns the smiley; 💎 and ❤️ are for puzzles solved on your own
+  if(hints>0)S.smiles++;
+  else if(errors==0&&(S.best==null||secs<=S.best)){reward='💎';S.gems++}
   else if(errors<=2||secs<120){reward='❤️';S.hearts++}
   else S.smiles++;
-  if(S.best==null||secs<S.best)S.best=secs;
+  if(!hints&&(S.best==null||secs<S.best))S.best=secs;   // only puzzles solved without hints set the best time
   S.wins++;let lesson='You found every number. Time: '+mmss(secs)+'.';
   if(S.wins>=cfg.need){S.wins=0;S.best=null;
     if(S.step<2){S.step++;lesson='You unlocked a harder step!'}
@@ -148,7 +150,7 @@ $('hint').onclick=()=>{if(done)return;
   const bad=i=>!given.has(i)&&board[i]!==sol[i];
   const pick=sel>=0&&bad(sel)?sel:[...Array(n*n).keys()].find(bad);
   if(pick==null){Lab.msg('Every box is already right.');return}
-  board[pick]=sol[pick];given.add(pick);sel=pick;Lab.sfx('hint');
+  board[pick]=sol[pick];given.add(pick);sel=pick;hints++;Lab.sfx('hint');
   const c=render();Lab.msg('💡 That box is '+sol[pick]+'.');
   if(board.every(x=>x)&&!c.size)win()};
 $('reset').onclick=()=>{if(done)return;board=board.map((v,i)=>given.has(i)?v:0);hist=[];render();Lab.msg('')};

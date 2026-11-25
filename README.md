@@ -21,6 +21,7 @@ Plain HTML, CSS and JavaScript: no build step and no libraries.
 - `shared/lab.css`: the "Sea glass" colours, layout and components every game uses
 - `shared/lab.js`: shared helpers: sounds, confetti and the spoken cheer, the win card, the sticker book, the How to play animations, and saved progress
 - One folder per game, each with a single `index.html`
+- `stickers/`: the sticker book, showing every sticker earned, grouped by game
 
 Progress (levels, stars and stickers) is saved in the browser on each device.
 

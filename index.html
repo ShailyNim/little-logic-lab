@@ -11,9 +11,16 @@
 .top{display:flex;align-items:center;gap:10px;min-height:var(--tap);flex:none}
 .top h1{margin:0;font-size:28px;font-weight:800;flex:1;line-height:1.1}
 .top .logo{font-size:30px}
-.sub{margin:0;font-size:15px;font-weight:600;color:var(--text-soft);flex:none}
+.sub{margin:0;font-size:15px;font-weight:600;color:var(--text-soft);flex:1}
+.subrow{display:flex;align-items:center;gap:8px;flex:none}
+.book-btn{height:44px;display:inline-flex;align-items:center;gap:6px;padding:0 14px 0 10px;border-radius:var(--r-pill);background:var(--raised);
+  color:var(--text);font:800 15px var(--font);text-decoration:none;flex:none;box-shadow:inset 0 0 0 3px var(--sun)}
+.book-btn:active{transform:scale(.96)}
+.book-btn b{background:var(--sun);color:var(--on-sun);border-radius:99px;padding:0 7px;font-size:13px;line-height:20px}
+.book-btn b:empty{display:none}
 .round.off{opacity:.55}
 .tiles{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:minmax(0,190px);gap:12px;align-content:center}
+@media (min-width:700px) and (min-height:600px){.tiles{grid-template-columns:1fr 1fr 1fr;grid-auto-rows:minmax(0,220px)}.tile .nm{font-size:19px}}
 .tile{border-radius:var(--r-panel);background:var(--accent);color:var(--on-accent);text-decoration:none;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:10px 8px;text-align:center;
   min-height:0;transition:transform .1s}
@@ -36,7 +43,7 @@
     <button class="round" id="snd" aria-label="Sound"></button>
     <button class="round" id="dim" aria-label="Dim mode"></button>
   </header>
-  <p class="sub">Pick a puzzle to play.</p>
+  <div class="subrow"><p class="sub">Pick a puzzle to play.</p><a class="book-btn" href="stickers/"><span aria-hidden="true">📒</span> My stickers <b id="stkN"></b></a></div>
   <nav class="tiles" id="tiles"></nav>
 </main>
 <script>
@@ -56,6 +63,8 @@ T.innerHTML=GAMES.map(g=>{
   return '<a class="tile" style="'+style+'" href="'+g.href+'"><span class="ic">'+g.icon+'</span><span class="nm">'+g.name+'</span><span class="st">'+(s?'⭐ '+s:'New')+'</span></a>';
 }).join('');
 
+// how many stickers so far, shown on the My stickers button
+const nStk=GAMES.reduce((a,g)=>a+((Lab.game(g.id).stk||[]).length),0);document.getElementById('stkN').textContent=nStk||'';
 const snd=document.getElementById('snd'),dim=document.getElementById('dim');
 function paint(){snd.textContent=Lab.sound?'🔊':'🔇';snd.classList.toggle('off',!Lab.sound);snd.setAttribute('aria-pressed',Lab.sound);
   dim.textContent='🌙';dim.classList.toggle('off',!Lab.dim);dim.setAttribute('aria-pressed',Lab.dim)}

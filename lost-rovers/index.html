@@ -140,7 +140,7 @@ function turnSpot(it,tapped){const n=P.n,old=it.pos,nd=old.dir=='h'?'v':'h',X=ce
 
 // ---------- drawing ----------
 function size(){if(!P)return;const k=P.n+2;
-  S=Math.max(24,Math.min(64,Math.floor((Math.min(area.w,area.h)-20-G4*(k-1))/k)));
+  S=Math.max(24,Math.min(96,Math.floor((Math.min(area.w,area.h)-20-G4*(k-1))/k)));
   $('g').style.setProperty('--s',S+'px');$('g').style.setProperty('--k',k)}
 // ---------- the space fleet: rover 1 box, rocket 2, satellite 3, big rocket 4 ----------
 // Each craft is drawn flat and points along its length, front at the LEFT. A turned craft is the same

@@ -88,7 +88,7 @@ function make(){
   build();update()}
 
 function size(){if(!P)return;const n=P.n,g=6,pad=20;
-  const s=Math.max(40,Math.min(96,Math.floor((Math.min(area.w,area.h)-pad-(n-1)*g)/n)));
+  const s=Math.max(40,Math.min(130,Math.floor((Math.min(area.w,area.h)-pad-(n-1)*g)/n)));
   $('b').style.setProperty('--s',s+'px');$('b').style.setProperty('--n',n)}
 
 function build(){

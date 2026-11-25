@@ -152,7 +152,7 @@
     hv.onclick=e=>{if(e.target===hv)hv.classList.remove('on')};
     hv.classList.add('on');setTimeout(()=>hv.querySelector('#helpOk').focus({preventScroll:true}),50)}
   // sticker book: every win adds one sticker from the game's own set; the newest ones show under the title
-  function addSticker(id,s){const g=game(id);g.stk=(g.stk||[]).concat(s).slice(-60);save()}
+  function addSticker(id,s){const g=game(id);g.stk=(g.stk||[]).concat(s).slice(-300);save()}
   function showStickers(){const el=document.getElementById('stk');if(!el||!G)return;const s=game(G.id).stk||[];
     el.textContent=s.length?s.slice(-10).join(' '):'Win a puzzle to get a sticker.';el.classList.toggle('none',!s.length)}
 
@@ -173,9 +173,10 @@
     const bx=ov.querySelector('.win-btns');
     const add=(label,fn,main)=>{const b=document.createElement('button');b.className='btn'+(main?' main':'');b.textContent=label;
       b.onclick=()=>{hideWin();fn()};bx.appendChild(b)};
-    if(o.again)add(o.againLabel||'Play again',o.again,!o.next);
+    // no next level (the last one): offer Home, and Keep playing for a fresh puzzle at the top level
+    if(!o.next)add('🏠 Home',()=>location.href='../index.html',!o.again);
+    if(o.again)add(o.next?(o.againLabel||'Play again'):'Keep playing',o.again,!o.next);
     if(o.next)add(o.nextLabel||'Next level',o.next,true);
-    if(!o.next&&!o.again)add('Home',()=>location.href='../index.html',true);
     ov.classList.add('on');
     const first=bx.querySelector('.main')||bx.firstChild;if(first)setTimeout(()=>first.focus({preventScroll:true}),50);
     showStickers();confetti(ov);jingle();say(cheer,700)}

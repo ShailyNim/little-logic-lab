@@ -121,7 +121,7 @@ function make(){
   size();render()}
 
 function size(){if(!P)return;const n=P.n;
-  const s=Math.max(44,Math.min(92,Math.floor((Math.min(area.w,area.h)-20)/n)));
+  const s=Math.max(44,Math.min(130,Math.floor((Math.min(area.w,area.h)-20)/n)));
   $('b').style.setProperty('--s',s+'px');$('b').style.setProperty('--n',n)}
 
 function check(){const{n,v,cages}=P,one=i=>v[i].length==1?v[i][0]:0,dup=new Set();let dupMsg='';

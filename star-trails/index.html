@@ -134,7 +134,7 @@ function colours(){const cs=getComputedStyle(document.documentElement),g=k=>cs.g
  C={raised:g('--raised'),text:g('--text'),given:g('--given'),
   // the trail steps through the Lab's colours, two dots per colour (a shade deeper than the tiles so it shows on light boxes)
   path:['#5BBF9F','#6FB0DE','#A38FDB','#EC92B8','#F2A766','#E9BD48']}}
-function fit(){const s=Math.max(180,Math.min(area.w,area.h,520)-20)|0,d=devicePixelRatio||1;cv.style.width=cv.style.height=s+'px';cv.width=cv.height=s*d;X.setTransform(d,0,0,d,0,0);SZ=s;colours()}
+function fit(){const s=Math.max(180,Math.min(area.w,area.h,680)-20)|0,d=devicePixelRatio||1;cv.style.width=cv.style.height=s+'px';cv.width=cv.height=s*d;X.setTransform(d,0,0,d,0,0);SZ=s;colours()}
 function draw(now){if(!G)return;X.clearRect(0,0,SZ,SZ);const n=G.n,c=SZ/n,ct=i=>[(i%n+.5)*c,((i/n|0)+.5)*c];
  for(let i=0;i<n*n;i++){if(!G.open[i])continue;X.fillStyle=C.raised;X.beginPath();const x=i%n*c+3,y=(i/n|0)*c+3;X.roundRect?X.roundRect(x,y,c-6,c-6,Math.min(14,c*.22)):X.rect(x,y,c-6,c-6);X.fill()}
  X.globalAlpha=done?1:.08+.5*P.length/G.cnt;X.font=SZ*(done?.7:.62)+'px serif';X.textAlign='center';X.textBaseline='middle';X.fillText(G.em,SZ/2,SZ*.53);X.globalAlpha=1;

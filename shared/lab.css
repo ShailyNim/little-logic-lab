@@ -20,6 +20,12 @@
   color-scheme:light;
 }
 /* Dim: a softer, lower-glare version of the same greens for evenings */
+/* tablets and laptops: a wider page, so boards grow instead of sitting in a narrow phone column */
+@media (min-width:700px) and (min-height:600px){
+  :root{--max:720px}
+  .msg{font-size:17px}
+  .caption{font-size:15px}
+}
 :root.dim{
   --page:#BFD3CC; --panel:#ABC4BB; --raised:#D5E4DE; --line:#93B0A6; --text:#1E3832; --text-soft:#43605A;
 }

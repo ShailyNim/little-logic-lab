@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#DCEBE6">
+<title>My stickers · Little Logic Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/lab.css">
+<script src="../shared/lab.js"></script>
+<style>
+/* the sticker book scrolls like a normal page (it is not a one-screen game) */
+.book{max-width:var(--max);margin:0 auto;padding:calc(8px + env(safe-area-inset-top)) var(--edge) 24px}
+.total{font-size:15px;font-weight:700;color:var(--text-soft);margin:4px 0 12px}
+.game{border-radius:var(--r-panel);padding:12px;margin-bottom:12px;background:var(--tint)}
+.game h2{margin:0 0 8px;font-size:18px;font-weight:800;display:flex;align-items:center;gap:8px}
+.game h2 .n{margin-left:auto;font-size:14px;font-weight:700;color:var(--text-soft)}
+.page{display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:8px}
+.st{aspect-ratio:1;border-radius:var(--r-cell);background:var(--raised);display:flex;align-items:center;justify-content:center;font-size:30px;position:relative}
+.st b{position:absolute;right:4px;bottom:2px;font-size:12px;font-weight:800;color:var(--text-soft)}
+.st.new{animation:pop .4s both}
+.st.blank{background:transparent;outline:2px dashed var(--line);outline-offset:-4px}
+.none{font-size:14px;font-weight:700;color:var(--text-soft);margin:2px 0 0}
+.none a{color:var(--text);font-weight:800}
+</style>
+</head><body>
+<main class="book">
+  <header class="hdr"><a class="home-btn" href="../index.html"><span aria-hidden="true">🏠</span> Home</a><div class="ttl"><h1>My stickers</h1></div></header>
+  <p class="total" id="total"></p>
+  <div id="games"></div>
+</main>
+<script>
+// one section per game, in the same order and colours as the home page. Same stickers are stacked
+// with a little count, so a big collection stays tidy; empty spots hint that there is more to win.
+const GAMES=[
+  {id:'bulbs',name:'Light the Bulbs',icon:'💡',c:'sun',href:'../light-the-bulbs/'},
+  {id:'rovers',name:'Lost Rovers',icon:'🤖',c:'sky',href:'../lost-rovers/'},
+  {id:'chips',name:'Number Chips',icon:'🔢',c:'lavender',href:'../number-chips/'},
+  {id:'sudoku',name:'Sudoku',icon:'🧩',c:'pink',href:'../sudoku/'},
+  {id:'trails',name:'Star Trails',icon:'⭐',c:'mint',href:'../star-trails/'}];
+let all=0;
+document.getElementById('games').innerHTML=GAMES.map(g=>{
+  const s=Lab.game(g.id).stk||[];all+=s.length;
+  const counts=new Map();s.forEach(x=>counts.set(x,(counts.get(x)||0)+1));
+  const tiles=[...counts].map(([e,k],i)=>'<div class="st new" style="animation-delay:'+(i*.04)+'s" aria-label="'+k+' of '+e+'">'+e+(k>1?'<b>×'+k+'</b>':'')+'</div>').join('');
+  const blanks=Math.max(0,4-counts.size);
+  return '<section class="game" style="--tint:var(--'+g.c+'-t)"><h2><span aria-hidden="true">'+g.icon+'</span>'+g.name+'<span class="n">'+s.length+'</span></h2>'+
+    (s.length?'<div class="page">'+tiles+'<div class="st blank"></div>'.repeat(blanks)+'</div>'
+             :'<p class="none">Win a puzzle in <a href="'+g.href+'">'+g.name+'</a> to get your first sticker.</p>')+'</section>'}).join('');
+document.getElementById('total').textContent=all?'You have '+all+' sticker'+(all==1?'':'s')+'!':'No stickers yet. Win a puzzle to get one!';
+</script>
+</body></html>
