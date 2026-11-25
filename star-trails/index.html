@@ -26,9 +26,11 @@ body{--accent:var(--mint);--on-accent:var(--on-mint)}
   <div class="play" id="play"><div class="board"><canvas id="c"></canvas></div></div>
   <div class="msg" id="msg" aria-live="polite"></div>
   <div class="btns">
+    <button class="btn icon" id="prev" aria-label="Previous level">◀</button>
     <button class="btn icon" id="hb" aria-label="Hint">💡</button>
     <button class="btn icon" id="rb" aria-label="Start again">↺</button>
     <button class="btn main" id="kb">New trail</button>
+    <button class="btn icon" id="next" aria-label="Next level">▶</button>
   </div>
 </main>
 <div class="sheet" id="par"><div class="sheet-card" id="pb"></div></div>
@@ -107,7 +109,7 @@ function nxt(){let k=0;do G=make(S.rung);while(G.sig==lastSig&&++k<5);lastSig=G.
  Lab.hideWin();Lab.setLevel(GID,S.rung);Lab.puzzleStart(GID);
  P=[G.start];M={moves:0,undo:0,doom:0,hint:0,bad:0,rs:0,look:[],pause:0,last:Date.now(),dAt:0,dMax:0};
  doomed=done=false;hint=null;lastBad=-1;
- $('lv').textContent='Level '+(S.rung+1)+' of '+RG.length;
+ $('lv').textContent='Level '+(S.rung+1)+' of '+RG.length;$('prev').disabled=S.rung==0;$('next').disabled=S.rung==MAXR;
  Lab.showStickers();
  fit();msg(intro,true)}
 let mt;function msg(t,stay){Lab.msg(t);clearTimeout(mt);if(t&&!stay)mt=setTimeout(()=>Lab.msg(''),3500)}
@@ -161,6 +163,9 @@ function finish(res){if(doomed)M.look.push(M.dMax-M.dAt);const t=Date.now()-G.t0
  if(res=='solved'){S.stk.push(G.em);S.stk=S.stk.slice(-40)}save()}
 function win(){done=true;finish('solved');msg('You visited every dot!',true);
  setTimeout(()=>{Lab.win({game:GID,hero:G.em,sticker:G.em,lesson:'A trail that visits every dot once is a clever path.',next:nxt,nextLabel:'Next trail'})},900)}
+// choosing a level by hand: go there and start counting clean/hard puzzles afresh
+const goLv=r=>{S.rung=Math.max(0,Math.min(MAXR,r));S.clean=S.hard=0;save();nxt()};
+$('prev').onclick=()=>goLv(S.rung-1);$('next').onclick=()=>goLv(S.rung+1);
 $('kb').onclick=()=>{if(!done){finish('skip');nxt()}};
 $('rb').onclick=()=>{if(done)return;M.rs++;if(doomed){M.look.push(M.dMax-M.dAt);Lab.logic('back','missed')}P=[G.start];doomed=false;msg(intro,true)};
 $('hb').onclick=()=>{if(done)return;if(doomed){msg('Slide back a bit first ⬅️');return}
