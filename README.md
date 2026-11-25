@@ -22,6 +22,18 @@ Plain HTML, CSS and JavaScript: no build step and no libraries.
 - `shared/lab.js`: shared helpers: sounds, confetti and the spoken cheer, the win card, the sticker book, the How to play animations, and saved progress
 - One folder per game, each with a single `index.html`
 - `stickers/`: the sticker book, showing every sticker earned, grouped by game
+- `grown-ups/`: the Grown-ups corner (behind a quick sum): which logic moves the child uses, with evidence,
+  explainers, real moments from their play, suggestions, and settings
+- `shared/logic.js`: the 17 logic moves (zero line, last one missing, forced move, number bonds, …) with
+  plain-language explanations and animated examples
+
+## Logic tracker
+
+Each game checks every step the child makes: which simple rule, if any, made that step certain from what was on
+the board at that moment. A correct step decided by a rule counts as using that move; a wrong step in a box a rule
+had already decided counts as missing it; a hint records which move it showed. The Grown-ups corner turns this
+into a level per move (not met yet, just started, practising, confident). Everything is stored only in the
+browser on that device.
 
 Progress (levels, stars and stickers) is saved in the browser on each device.
 

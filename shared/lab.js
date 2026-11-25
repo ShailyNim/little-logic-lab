@@ -4,7 +4,9 @@
   let st=null;
   try{st=JSON.parse(localStorage.getItem(KEY))}catch(e){}
   if(!st||typeof st!=='object')st={};
-  st.sound=st.sound===0?0:1; st.dim=st.dim?1:0; st.games=st.games||{};
+  st.sound=st.sound===0?0:1; st.voice=st.voice===0?0:1; st.dim=st.dim?1:0; st.games=st.games||{};
+  // logic tracker data (see "logic tracker" below): per-move evidence, solved puzzles, play time, moments
+  st.skills=st.skills||{}; st.plog=st.plog||[]; st.play=st.play||{}; st.moments=st.moments||[];
   const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(st))}catch(e){}};
   const applyDim=()=>document.documentElement.classList.toggle('dim',!!st.dim);
   applyDim();
@@ -51,7 +53,7 @@
   function pickVoice(){const vs=(window.speechSynthesis&&speechSynthesis.getVoices())||[],en=vs.filter(v=>/^en/i.test(v.lang));
     voice=en.find(v=>/samantha|aria|jenny|google us english|zira|karen|moira|tessa|libby|sonia|female/i.test(v.name))||en[0]||null}
   if(window.speechSynthesis){pickVoice();speechSynthesis.onvoiceschanged=pickVoice}
-  function say(text,delay=0){if(!st.sound||!touched||!window.speechSynthesis)return;
+  function say(text,delay=0){if(!st.sound||!st.voice||!touched||!window.speechSynthesis)return;
     setTimeout(()=>{try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);if(voice)u.voice=voice;
       u.rate=1.02;u.pitch=1.45;u.volume=1;speechSynthesis.speak(u)}catch(e){}},delay)}
   const PRAISE=['Great job!','You did it!','Awesome!','Hooray!','Super star!','Way to go!','Fantastic!'];
@@ -156,10 +158,40 @@
   function showStickers(){const el=document.getElementById('stk');if(!el||!G)return;const s=game(G.id).stk||[];
     el.textContent=s.length?s.slice(-10).join(' '):'Win a puzzle to get a sticker.';el.classList.toggle('none',!s.length)}
 
+  // ---------- logic tracker ----------
+  // Games call Lab.puzzleStart() for each new puzzle, Lab.logic(move,outcome,info) for each step they can explain,
+  // and Lab.hintUsed() for each hint. outcome: 'used' (a correct step this rule made certain),
+  // 'missed' (a wrong step in a box this rule had already decided) or 'hint' (a hint where this rule applied).
+  // Everything stays in this browser.
+  const today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
+  let cur=null;
+  function puzzleStart(gid){cur={g:gid||(G&&G.id),t0:Date.now(),hints:0,miss:0,id:(gid||(G&&G.id))+'-'+Date.now()}}
+  function logic(move,outcome,info={}){
+    if(!cur)puzzleStart();
+    const s=st.skills[move]||(st.skills[move]={used:0,missed:0,hint:0,recent:'',puz:0,lastPuz:'',first:Date.now(),games:{},days:{}});
+    if(outcome=='used')s.used++;else if(outcome=='missed'){s.missed++;cur.miss++}else s.hint++;
+    s.recent=(s.recent+(outcome=='used'?'1':'0')).slice(-20);         // the last 20 chances: 1 used, 0 missed or hinted
+    if(s.lastPuz!==cur.id){s.puz++;s.lastPuz=cur.id}
+    s.games[cur.g]=(s.games[cur.g]||0)+1;
+    const d=today(),day=s.days[d]||(s.days[d]=[0,0]);day[outcome=='used'?0:1]++;
+    Object.keys(s.days).sort().slice(0,-60).forEach(k=>delete s.days[k]);  // keep 60 days
+    // keep a few "moments" (a small picture of the board) to show grown-ups real examples
+    // keep the first two of each move, then about 1 in 12, so the report shows a mix of moves
+    if(outcome=='used'&&info.snap&&(s.used<=2||Math.random()<.08)){
+      st.moments.push({move,g:cur.g,ts:Date.now(),cap:info.cap||'',snap:info.snap});st.moments=st.moments.slice(-30)}
+    save()}
+  function hintUsed(){if(!cur)puzzleStart();cur.hints++}
+  // play time: count 15-second slices while the page is visible and the child has touched something in the last minute
+  let lastAct=0;addEventListener('pointerdown',()=>lastAct=Date.now(),{capture:true});
+  setInterval(()=>{if(!document.hidden&&Date.now()-lastAct<60000){const d=today();st.play[d]=(st.play[d]||0)+15;
+    Object.keys(st.play).sort().slice(0,-90).forEach(k=>delete st.play[k]);save()}},15000);
+
   // Shared win card. o = {game, hero, title, lesson, sticker, next:fn|null, nextLabel, again:fn|null, againLabel}
   let ov=null;
   function win(o){
-    const g=game(o.game);g.stars++;save();
+    const g=game(o.game);g.stars++;
+    st.plog.push({g:o.game,ts:Date.now(),dur:cur?Date.now()-cur.t0:0,hints:cur?cur.hints:0,miss:cur?cur.miss:0});st.plog=st.plog.slice(-400);cur=null;
+    save();
     const pool=(G&&G.stickers)||['⭐'],sticker=o.sticker||pool[Math.random()*pool.length|0];addSticker(o.game,sticker);
     if(!ov){ov=document.createElement('div');ov.className='win-ov';ov.setAttribute('role','dialog');ov.setAttribute('aria-modal','true');document.body.appendChild(ov)}
     ov.innerHTML='<div class="win-card"><div class="win-hero"></div><h2></h2><div class="win-stars"><span>⭐</span><span>⭐</span><span>⭐</span></div>'+
@@ -183,6 +215,8 @@
   function hideWin(){if(ov)ov.classList.remove('on')}
 
   window.Lab={get state(){return st},save,game,setLevel,beep,sfx,jingle,say,msg,wobble,fit,win,hideWin,reduced,setupGame,help,showStickers,
+    puzzleStart,logic,hintUsed,today,
     get sound(){return!!st.sound},setSound(v){st.sound=v?1:0;save()},
+    get voice(){return!!st.voice},setVoice(v){st.voice=v?1:0;save()},
     get dim(){return!!st.dim},setDim(v){st.dim=v?1:0;save();applyDim()}};
 })();

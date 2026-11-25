@@ -113,7 +113,7 @@ function make(){
   const fleet=f.map((len,k)=>({k,len,pos:null,lock:false}));
   rev.forEach(cells=>{const it=fleet.find(x=>x.len==cells.length&&!x.lock);it.pos=posOf(n,cells);it.lock=true});
   P={n,f,ships,rc,cc,fleet,marks:new Set(),done:false};
-  Lab.setLevel(GID,lv);Lab.hideWin();
+  Lab.setLevel(GID,lv);Lab.hideWin();Lab.puzzleStart(GID);
   $('lv').textContent='Level '+(lv+1)+' of '+L.length;
   $('prev').disabled=lv==0;$('next').disabled=lv==L.length-1;
   Lab.msg(intro());draw()}
@@ -129,6 +129,47 @@ function zoneOf(occ){const n=P.n,z=new Set();occ.forEach(c=>{const r=R_(c,n),q=c
 function canPark(it,p){if(!inside(it.len,p))return false;const occ=taken(it),z=zoneOf(occ);
   return cellsOf(it.len,p).every(c=>!occ.has(c)&&!z.has(c))}
 function park(it,p){it.pos=p;cellsOf(it.len,p).forEach(c=>P.marks.delete(c))}
+
+// ---------- logic tracker: which rule made a step certain? ----------
+// What the child can see right now: rover boxes, and empty boxes (their ✖ marks plus every parking space).
+function seen(except){const rov=taken(except),emp=new Set([...P.marks,...zoneOf(rov)]);return{rov,emp}}
+const lineCells=(k,row)=>[...Array(P.n)].map((_,j)=>row?k*P.n+j:j*P.n+k);
+// the simple rule (if any) that decides box i is empty / is a rover, from what the child can see
+function whyEmpty(i,s){const r=R_(i,P.n),c=i%P.n;
+  if(P.rc[r]==0||P.cc[c]==0)return'zero';
+  for(const[line,need]of[[lineCells(r,true),P.rc[r]],[lineCells(c,false),P.cc[c]]])if(line.filter(x=>s.rov.has(x)).length>=need)return'done';
+  return null}
+function whyRover(i,s){const r=R_(i,P.n),c=i%P.n;
+  for(const[line,need]of[[lineCells(r,true),P.rc[r]],[lineCells(c,false),P.cc[c]]]){
+    const have=line.filter(x=>s.rov.has(x)).length,free=line.filter(x=>!s.rov.has(x)&&!s.emp.has(x)).length;
+    if(need>have&&need-have==free)return'full'}
+  return null}
+const solSet=()=>new Set(P.ships.flat());
+const lineName=i=>'row '+(R_(i,P.n)+1);
+// a small picture of the board for the grown-ups report; `hi` boxes get a gold ring
+function snap(hi=[],mintClue){const n=P.n,s=seen(),cells=[['','gap']];
+  P.cc.forEach((v,c)=>cells.push([String(v),'clue'+(mintClue&&mintClue[0]=='c'&&mintClue[1]==c?' mint':'')]));
+  for(let r=0;r<n;r++){cells.push([String(P.rc[r]),'clue'+(mintClue&&mintClue[0]=='r'&&mintClue[1]==r?' mint':'')]);
+    for(let c=0;c<n;c++){const i=r*n+c;cells.push([P.marks.has(i)?'✖':'',(s.rov.has(i)?'rov':P.marks.has(i)?'x':s.emp.has(i)?'zone':'')+(hi.includes(i)?' hl':'')])}}
+  return{cols:n+1,cells}}
+// a ✖ mark is about to be added on box i
+function trackMark(i){const s=seen(),sol=solSet(),r=R_(i,P.n),c=i%P.n,box=COLS[c]+(r+1);
+  if(sol.has(i)){const w=whyRover(i,s);if(w)Lab.logic(w,'missed');return}
+  const w=whyEmpty(i,s);if(!w)return;
+  P.marks.add(i);
+  const zeroLine=P.rc[r]==0?['r',r]:P.cc[c]==0?['c',c]:null;
+  Lab.logic(w,'used',{snap:snap([i],w=='zero'?zeroLine:null),
+    cap:w=='zero'?(zeroLine[0]=='r'?'Row '+(r+1):'Column '+COLS[c])+' said 0, so they crossed out '+box+'.':'That line already had all its rover boxes, so they crossed out '+box+'.'});
+  P.marks.delete(i)}
+// rover `it` is about to be parked at p (from the tray, a move, or a turn)
+function trackPark(it,p){const s=seen(it),sol=solSet(),cs=cellsOf(it.len,p),ok=cs.every(x=>sol.has(x));
+  if(!ok){const rules=new Set(cs.filter(x=>!sol.has(x)).map(x=>whyEmpty(x,s)).filter(Boolean));rules.forEach(w=>Lab.logic(w,'missed'));return}
+  const full=cs.find(x=>whyRover(x,s)=='full');
+  const shown=()=>{const saved=it.pos;it.pos=p;const sn=snap(cs);it.pos=saved;return sn};
+  if(full!=null)Lab.logic('full','used',{snap:shown(),cap:'The '+lineName(full)+' clue matched its free boxes, so they parked the '+NAME[it.len]+' there.'});
+  // the parking spaces of other rovers narrowed this line down: the no-touch rule helped
+  const lines=new Set();cs.forEach(x=>{lineCells(R_(x,P.n),true).forEach(y=>lines.add(y));lineCells(x%P.n,false).forEach(y=>lines.add(y))});
+  if([...lines].some(y=>zoneOf(s.rov).has(y)))Lab.logic('zone','used',{snap:shown(),cap:'They parked the '+NAME[it.len]+' clear of another rover\'s parking space.'})}
 // where a parked rover goes when tapped to turn: first around its front box (as before); if that has no room,
 // around the box that was tapped; failing that, the nearest spot pointing the new way that still touches that box.
 function turnSpot(it,tapped){const n=P.n,old=it.pos,nd=old.dir=='h'?'v':'h',X=cellsOf(it.len,old)[Math.min(tapped,it.len-1)],xr=R_(X,n),xc=X%n,best=[];
@@ -234,6 +275,7 @@ addEventListener('pointermove',e=>{
 addEventListener('pointerup',e=>{
   if(!D)return;const d=D;D=null;if(ghost){ghost.remove();ghost=null}preview(null);
   if(d.cell!=null){if(d.moved)return;const occ=taken();if(occ.has(d.cell)||zoneOf(occ).has(d.cell))return;
+    if(!P.marks.has(d.cell))trackMark(d.cell);
     P.marks.has(d.cell)?P.marks.delete(d.cell):P.marks.add(d.cell);Lab.sfx('mark');draw();return}
   const it=P.fleet[d.k];
   if(!d.moved){
@@ -242,13 +284,14 @@ addEventListener('pointerup',e=>{
       it.trayDir=(it.trayDir||'h')=='h'?'v':'h';Lab.sfx('turn');draw();
       Lab.msg('Now it goes '+(it.trayDir=='v'?'down':'across')+'. Drag it in.');return}
     const p=turnSpot(it,d.grab);
-    if(p){park(it,p);Lab.sfx('turn');Lab.msg('');draw();autoCheck()}
+    if(p){trackPark(it,p);park(it,p);Lab.sfx('turn');Lab.msg('');draw();autoCheck()}
     else{Lab.msg('No room to turn it here.');Lab.wobble(document.querySelector('#g .rv[data-k="'+it.k+'"]'))}
     return}
   D={...d};const t=target(e);D=null;
   if(!t.onGrid){if(!d.fromTray){it.trayDir=it.pos.dir;it.pos=null;Lab.msg('');draw()}return}   // dropped off the grid: back to the tray, still pointing the same way
-  if(canPark(it,t.p)){park(it,t.p);Lab.sfx('place');Lab.msg('');draw();autoCheck()}
-  else{Lab.msg(inside(it.len,t.p)?'No room there. Rovers need space around them.':'That spot is off the grid.');Lab.wobble($('bd'))}});
+  if(canPark(it,t.p)){trackPark(it,t.p);park(it,t.p);Lab.sfx('place');Lab.msg('');draw();autoCheck()}
+  else{if(inside(it.len,t.p))Lab.logic('zone','missed');   // tried to park on or beside another rover
+    Lab.msg(inside(it.len,t.p)?'No room there. Rovers need space around them.':'That spot is off the grid.');Lab.wobble($('bd'))}});
 addEventListener('pointercancel',()=>{if(ghost){ghost.remove();ghost=null}D=null;preview(null)});
 
 // ---------- buttons ----------
@@ -276,6 +319,8 @@ $('hint').onclick=()=>{if(P.done)return;const n=P.n;
   const ship=P.ships.find(s=>!s.every(c=>locked.has(c)));
   if(!ship){Lab.msg('Every rover is already showing.');return}
   const p=posOf(n,ship),same=it=>it.pos&&it.pos.r==p.r&&it.pos.c==p.c&&(it.len==1||it.pos.dir==p.dir);
+  // tracker: a hint, and the rule that would have found this rover (if a simple one did)
+  Lab.hintUsed();{const sv=seen(),w=ship.map(x=>whyRover(x,sv)).find(Boolean);if(w)Lab.logic(w,'hint')}
   const it=P.fleet.find(x=>!x.lock&&x.len==ship.length&&same(x))||P.fleet.find(x=>!x.lock&&x.len==ship.length&&!x.pos)||P.fleet.find(x=>!x.lock&&x.len==ship.length);
   it.pos=null;it.lock=true;
   P.fleet.forEach(o=>{if(o!==it&&o.pos&&!o.lock&&!canParkWith(o,ship))o.pos=null});

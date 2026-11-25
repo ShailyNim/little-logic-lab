@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#DCEBE6">
+<title>Grown-ups corner · Little Logic Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/lab.css">
+<script src="../shared/lab.js"></script>
+<script src="../shared/logic.js"></script>
+<style>
+/* a normal scrolling page for grown-ups (not a one-screen game) */
+.wrap{max-width:var(--max);margin:0 auto;padding:calc(8px + env(safe-area-inset-top)) var(--edge) 32px}
+.sub{color:var(--text-soft);font-weight:600;margin:2px 0 6px;font-size:14px}
+h2.sec{font-size:18px;margin:22px 0 8px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.stat{background:var(--raised);border-radius:14px;padding:10px 12px}
+.stat .k{font-size:13px;font-weight:700;color:var(--text-soft)}
+.stat .v{font-size:24px;font-weight:800}
+.stat .t{font-size:12px;font-weight:700;color:#3C8F73}
+.legend{display:flex;gap:6px 14px;flex-wrap:wrap;font-size:13px;font-weight:700;color:var(--text-soft);margin:0 0 8px}
+.dots{display:inline-flex;gap:3px;vertical-align:middle}
+.dots i{width:11px;height:11px;border-radius:50%;background:var(--panel);border:2px solid var(--line)}
+.dots i.on{background:var(--mint);border-color:#3C8F73}
+.group{background:var(--raised);border-radius:16px;padding:6px 12px;margin-bottom:10px}
+.group h3{margin:6px 0 4px;font-size:15px}
+.move{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:8px 6px;border-top:1px solid var(--panel);cursor:pointer;border-radius:10px;
+  background:none;border-left:0;border-right:0;border-bottom:0;width:100%;text-align:left;font:inherit;color:inherit}
+.move:first-of-type{border-top:0}
+.move:hover,.move:focus-visible{background:var(--mint-t);outline:none}
+.move .name{font-weight:800}
+.move .name::after{content:" ⓘ";color:var(--text-soft);font-weight:700}
+.move .games{font-size:12px;font-weight:700;color:var(--text-soft)}
+.move .ev{grid-column:1/-1;font-size:13px;font-weight:600;color:var(--text-soft)}
+.move .ev b{color:var(--text)}
+.lvl-tag{display:inline-block;border-radius:99px;padding:1px 8px;font-size:11px;font-weight:800;margin-left:4px;vertical-align:1px}
+.k-conf{background:var(--mint);color:var(--on-mint)}.k-prac{background:var(--sun);color:var(--on-sun)}.k-start{background:var(--apricot);color:var(--on-apricot)}.k-none{background:var(--panel);color:var(--text-soft)}
+.moments{display:grid;gap:10px}
+.moment{display:flex;gap:12px;align-items:center;background:var(--raised);border-radius:16px;padding:10px 12px}
+.moment .ex-grid{--exs:22px;flex:none}
+.moment .ex-grid span{border-radius:5px}
+.moment b{display:block}
+.moment small{color:var(--text-soft);font-weight:600;font-size:14px}
+.next{background:var(--mint-t);border-radius:16px;padding:10px 12px 10px 28px;font-weight:700;margin:0}
+.next li{margin:6px 0}
+.games{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.gcard{border-radius:14px;padding:10px 12px;background:var(--tint)}
+.gcard b{display:block;font-size:15px}
+.gcard span{font-size:13px;font-weight:700;color:var(--text-soft)}
+.settings{background:var(--raised);border-radius:16px;padding:6px 12px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid var(--panel);font-weight:700}
+.row:first-child{border-top:0}
+.sw{width:56px;height:32px;border-radius:99px;border:0;background:var(--panel);position:relative;cursor:pointer;flex:none}
+.sw::after{content:"";position:absolute;top:4px;left:4px;width:24px;height:24px;border-radius:50%;background:var(--raised);transition:left .2s}
+.sw[aria-pressed=true]{background:var(--mint)}.sw[aria-pressed=true]::after{left:28px}
+.row select{font:700 15px var(--font);padding:6px 8px;border-radius:10px;border:2px solid var(--line);background:var(--raised);color:var(--text)}
+.small-btn{font:700 14px var(--font);padding:8px 12px;border-radius:99px;border:0;background:var(--panel);color:var(--text);cursor:pointer}
+.empty-note{background:var(--raised);border-radius:16px;padding:14px;font-weight:700;color:var(--text-soft)}
+/* explainer card */
+.ex-card{max-width:400px;text-align:left;max-height:92vh;overflow:auto}
+.ex-card h2{margin:0;font-size:22px}
+.ex-card .kind{font-size:13px;font-weight:800;color:var(--text-soft);margin:2px 0 8px}
+.ex-card h4{margin:12px 0 2px;font-size:14px;font-weight:800}
+.ex-card p{margin:0;font-size:15px;font-weight:600;line-height:1.4}
+.ex-card .yours{background:var(--mint-t);border-radius:12px;padding:8px 10px;margin-top:10px;font-size:14px}
+.ex-demo{background:var(--panel);border-radius:14px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:6px}
+.ex-step{font-size:13px;font-weight:800;min-height:18px;text-align:center}
+.ex-from{font-size:12px;font-weight:700;color:var(--text-soft)}
+/* grown-ups gate */
+.gate{position:fixed;inset:0;z-index:70;background:var(--page);display:flex;align-items:center;justify-content:center;padding:16px}
+.gate .win-card{max-width:340px}
+.gate input{font:800 24px var(--font);width:120px;text-align:center;padding:8px;border-radius:12px;border:3px solid var(--line);background:var(--raised);color:var(--text);margin:10px 0}
+.gate .err{min-height:20px;color:#B5504F;font-weight:700;font-size:14px}
+@media print{.gate,.hdr .home-btn,.settings,.print-btn,body::before,body::after{display:none!important}.move .name::after{content:""}}
+</style>
+</head><body>
+<div class="gate" id="gate"><div class="win-card"><h2>Grown-ups only</h2>
+  <p class="win-lesson" id="gq" style="font-size:18px;color:var(--text)"></p>
+  <input id="ga" type="number" inputmode="numeric" aria-label="Answer"><div class="err" id="ge"></div>
+  <div class="win-btns"><a class="btn" href="../index.html" style="display:flex;align-items:center;justify-content:center;text-decoration:none">🏠 Home</a><button class="btn main" id="go">Open</button></div></div></div>
+<main class="wrap" id="page" hidden>
+  <header class="hdr"><a class="home-btn" href="../index.html"><span aria-hidden="true">🏠</span> Home</a><div class="ttl"><h1>Grown-ups corner</h1></div>
+    <button class="round small print-btn" onclick="print()" aria-label="Print or save this report" title="Print or save this report">🖨️</button></header>
+  <p class="sub">How your child thinks through puzzles · last 14 days · everything stays on this device</p>
+  <div id="content"></div>
+</main>
+<div class="win-ov" id="ex" role="dialog" aria-modal="true"><div class="win-card ex-card" id="exCard"></div></div>
+<script>
+const st=Lab.state,LL=LabLogic,DAY=864e5,now=Date.now();
+// ---------- gate: a sum only grown-ups can do quickly ----------
+const a=12+(Math.random()*20|0),b=13+(Math.random()*20|0);
+document.getElementById('gq').textContent='What is '+a+' + '+b+'?';
+function unlock(){document.getElementById('gate').remove();document.getElementById('page').hidden=false;try{sessionStorage.setItem('lll.gu','1')}catch(e){}render()}
+// (the gate is started at the end of this script, once everything the report needs is defined)
+function startGate(){let opened=false;try{opened=sessionStorage.getItem('lll.gu')=='1'}catch(e){}
+  if(opened)return unlock();
+  const ga=document.getElementById('ga');setTimeout(()=>ga.focus(),50);
+  const tryIt=()=>{if(+ga.value===a+b)unlock();else{document.getElementById('ge').textContent='Not quite, try again.';ga.select()}};
+  document.getElementById('go').onclick=tryIt;ga.onkeydown=e=>{if(e.key=='Enter')tryIt()}}
+
+// ---------- the report ----------
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmtMin=s=>{const m=Math.round(s/60);return m<60?m+' min':Math.floor(m/60)+' h '+(m%60)+' m'};
+const dayKey=t=>{const d=new Date(t);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
+function playBetween(from,to){let s=0;for(const[d,v]of Object.entries(st.play)){const t=new Date(d+'T12:00').getTime();if(t>=from&&t<to)s+=v}return s}
+function render(){
+  const recent=st.plog.filter(p=>p.ts>now-14*DAY),before=st.plog.filter(p=>p.ts<=now-14*DAY&&p.ts>now-28*DAY);
+  const hp=l=>l.length?(l.reduce((s,p)=>s+p.hints,0)/l.length):0;
+  const play=playBetween(now-14*DAY,now+DAY),days=Math.max(1,new Set(Object.keys(st.play).filter(d=>new Date(d+'T12:00')>now-14*DAY)).size);
+  const newMoves=LL.MOVES.filter(m=>{const s=st.skills[m.id];return s&&s.first>now-14*DAY&&LL.level(s).n>=2});
+  const any=st.plog.length||Object.keys(st.skills).length;
+  let h='';
+  if(!any)h+='<p class="empty-note">Nothing to show yet. As your child plays, this page fills in with the logic they use, puzzle by puzzle.</p>';
+  // this fortnight
+  const diff=recent.length-before.length,hNow=hp(recent),hBefore=hp(before);
+  h+='<h2 class="sec">This fortnight</h2><div class="cards">'+
+    stat('Puzzles solved',recent.length,before.length?(diff>=0?'▲ '+diff+' more than the 2 weeks before':'▼ '+(-diff)+' fewer than before'):'')+
+    stat('Play time',fmtMin(play),play?'about '+fmtMin(play/days)+' on days they played':'')+
+    stat('Hints per puzzle',hNow.toFixed(1),before.length&&recent.length?(hNow<hBefore?'▼ from '+hBefore.toFixed(1)+': more independent':hNow>hBefore?'▲ from '+hBefore.toFixed(1):'steady'):'')+
+    stat('New logic moves',newMoves.length,newMoves.map(m=>m.name).join(', '))+'</div>';
+  // logic moves, grouped by kind
+  h+='<h2 class="sec">Logic moves</h2><p class="sub" style="margin-top:-4px">Tap a move to see what it is, with an example.</p>'+
+    '<div class="legend">'+[0,1,2,3].map(n=>'<span>'+dots(n)+' '+['not met yet','just started','practising','confident'][n]+'</span>').join('')+'</div>';
+  for(const[k,title]of LL.KINDS){const ms=LL.MOVES.filter(m=>m.kind==k);
+    h+='<div class="group"><h3>'+title+'</h3>'+ms.map(m=>{const s=st.skills[m.id],lv=LL.level(s);
+      return '<button class="move" data-id="'+m.id+'"><div><span class="name">'+esc(m.name)+'</span><span class="lvl-tag k-'+lv.key+'">'+lv.label.toLowerCase()+'</span>'+
+        '<div class="games">'+m.games.map(g=>LL.GAMES[g][0]).join(' · ')+'</div></div>'+dots(lv.n)+'<div class="ev">'+LL.evidence(m,s)+'</div></button>'}).join('')+'</div>'}
+  // moments
+  const mo=st.moments.slice(-3).reverse();
+  if(mo.length){h+='<h2 class="sec">Moments from their play</h2><div class="moments">'+mo.map(x=>{const m=LL.byId(x.move);
+    return '<div class="moment">'+LL.board(x.snap.cols,x.snap.cells)+'<div><b>'+esc(m?m.name:x.move)+' · '+esc(LL.GAMES[x.g]?LL.GAMES[x.g][0]:'')+'</b><small>'+esc(x.cap)+'</small><br><small>'+new Date(x.ts).toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'})+'</small></div></div>'}).join('')+'</div>'}
+  // try next
+  const tips=tryNext();if(tips.length)h+='<h2 class="sec">Try next</h2><ul class="next">'+tips.map(t=>'<li>'+t+'</li>').join('')+'</ul>';
+  // each game
+  h+='<h2 class="sec">Games</h2><div class="games">'+Object.entries(LL.GAMES).map(([id,[name,href,icon,col]])=>{const g=st.games[id]||{};
+    return '<a class="gcard" href="../'+href+'" style="--tint:var(--'+col+'-t);text-decoration:none;color:inherit"><b>'+icon+' '+name+'</b><span>'+(g.stars||0)+' solved · '+((g.stk||[]).length)+' stickers</span></a>'}).join('')+'</div>';
+  // settings
+  h+='<h2 class="sec">Settings</h2><div class="settings">'+
+    '<div class="row">Sounds<button class="sw" data-k="sound" aria-pressed="'+!!st.sound+'" aria-label="Sounds"></button></div>'+
+    '<div class="row">Spoken cheer ("Great job!")<button class="sw" data-k="voice" aria-pressed="'+!!st.voice+'" aria-label="Spoken cheer"></button></div>'+
+    '<div class="row">Dim colours<button class="sw" data-k="dim" aria-pressed="'+!!st.dim+'" aria-label="Dim colours"></button></div>'+
+    '<div class="row">Start a game again from level 1<span><select id="rg"><option value="">Choose…</option>'+Object.entries(LL.GAMES).map(([id,[n]])=>'<option value="'+id+'">'+n+'</option>').join('')+'</select></span></div>'+
+    '<div class="row">Clear this report (keeps levels and stickers)<button class="small-btn" id="clr">Clear</button></div></div>';
+  document.getElementById('content').innerHTML=h;
+  document.querySelectorAll('.move').forEach(b=>b.onclick=()=>openEx(b.dataset.id));
+  document.querySelectorAll('.sw').forEach(b=>b.onclick=()=>{const k=b.dataset.k,on=!(b.getAttribute('aria-pressed')=='true');
+    if(k=='sound')Lab.setSound(on);if(k=='voice')Lab.setVoice(on);if(k=='dim')Lab.setDim(on);b.setAttribute('aria-pressed',on)});
+  document.getElementById('rg').onchange=e=>{const id=e.target.value;if(!id)return;const name=LL.GAMES[id][0];
+    if(confirm('Start '+name+' again from level 1? Stickers stay.')){Lab.setLevel(id,0);
+      if(id=='sudoku')try{localStorage.removeItem('lll.sudoku')}catch(x){}
+      if(id=='trails')try{const s=JSON.parse(localStorage.getItem('st1')||'{}');s.rung=0;s.clean=s.hard=0;localStorage.setItem('st1',JSON.stringify(s))}catch(x){}}
+    e.target.value=''};
+  document.getElementById('clr').onclick=()=>{if(confirm('Clear the logic report and play history? Levels and stickers stay.')){
+    st.skills={};st.plog=[];st.play={};st.moments=[];Lab.save();render()}}}
+const stat=(k,v,t)=>'<div class="stat"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="t">'+esc(t)+'</div></div>';
+const dots=n=>'<span class="dots" aria-hidden="true">'+[1,2,3].map(i=>'<i'+(i<=n?' class="on"':'')+'></i>').join('')+'</span>';
+// suggestions: the moves they've started but haven't got yet, then a move coming up in a game they play
+function tryNext(){const out=[],started=LL.MOVES.map(m=>({m,s:st.skills[m.id],lv:LL.level(st.skills[m.id])})).filter(x=>x.lv.n==1||x.lv.n==2)
+    .sort((a,b)=>(a.lv.rate||0)-(b.lv.rate||0)).slice(0,2);
+  started.forEach(({m})=>out.push('<b>'+esc(m.name)+'</b> is still growing: practise it in '+esc(m.practise[1])+'. At home: '+esc(m.home)));
+  const played=new Set(st.plog.map(p=>p.g)),up=LL.MOVES.find(m=>!st.skills[m.id]&&m.games.some(g=>played.has(g)));
+  if(up)out.push('Coming up: <b>'+esc(up.name)+'</b>, in '+esc(up.practise[1])+'.');
+  return out}
+// ---------- explainer card for one logic move ----------
+let stopDemo=null;
+function openEx(id){const m=LL.byId(id),s=st.skills[id],lv=LL.level(s);if(!m)return;
+  const card=document.getElementById('exCard');
+  card.innerHTML='<h2>'+esc(m.name)+'</h2><div class="kind">'+LL.KINDS.find(k=>k[0]==m.kind)[1]+' · in '+m.games.map(g=>LL.GAMES[g][0]).join(', ')+'</div>'+
+    '<div class="ex-demo"><div class="ex-from">Example from <b>'+esc(m.demo.in)+'</b></div><div id="exGrid"></div><div class="ex-step" id="exStep"></div></div>'+
+    '<h4>What it is</h4><p>'+esc(m.what)+'</p><h4>Why it matters</h4><p>'+esc(m.why)+'</p>'+
+    '<h4>You\'ll know they\'ve got it when</h4><p>'+esc(m.looks)+'</p><h4>Try at home</h4><p>'+esc(m.home)+'</p>'+
+    '<p class="yours"><b>Your child: '+lv.label.toLowerCase()+'.</b> '+LL.evidence(m,s)+'</p>'+
+    '<div class="win-btns"><button class="btn main" id="exClose">Close</button></div>';
+  document.getElementById('ex').classList.add('on');card.scrollTop=0;
+  if(stopDemo)stopDemo();stopDemo=LL.play(document.getElementById('exGrid'),document.getElementById('exStep'),m.demo);
+  document.getElementById('exClose').onclick=closeEx}
+function closeEx(){document.getElementById('ex').classList.remove('on');if(stopDemo){stopDemo();stopDemo=null}}
+document.getElementById('ex').onclick=e=>{if(e.target.id=='ex')closeEx()};
+addEventListener('keydown',e=>{if(e.key=='Escape')closeEx()});
+startGate();
+</script>
+</body></html>

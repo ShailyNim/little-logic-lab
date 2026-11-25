@@ -81,7 +81,7 @@ function make(){
   P={n,b:g.m,bat:g.bat,bulbs:g.bulbs,r:[],spin:[],done:false};
   do{P.r=g.m.map(()=>Math.random()<d.keep?0:rnd(4))}while(check().ok); // never start already solved
   P.r0=P.r.slice();P.spin=P.r.slice();
-  Lab.setLevel(GID,lv);Lab.hideWin();
+  Lab.setLevel(GID,lv);Lab.hideWin();Lab.puzzleStart(GID);
   $('lv').textContent='Level '+(lv+1)+' of '+L.length;
   $('prev').disabled=lv==0;$('next').disabled=lv==L.length-1;
   Lab.msg('Turn the wires so every 💡 lights up.');
@@ -107,9 +107,26 @@ function update(){
     const bl=t.querySelector('.bulb');if(bl)bl.classList.toggle('lit',c.lit.has(i))});
   return c}
 
+// ---------- logic tracker: which rule decides how a piece must sit? ----------
+const cm=i=>rot(P.b[i],P.r[i]%4),right=i=>cm(i)===P.b[i];
+// ways piece i could sit given the board edge (edge) and its correctly-turned neighbours too (match)
+function ways(i,useNb){const{n}=P,x=i%n,y=i/n|0,out=new Set();
+  for(let k=0;k<4;k++){const m=rot(P.b[i],k);let ok=true;
+    for(const[bit,dx,dy,ob]of D){const X=x+dx,Y=y+dy,inb=X>=0&&Y>=0&&X<n&&Y<n;
+      if(!inb){if(m&bit)ok=false;continue}
+      if(useNb){const j=Y*n+X;if(P.b[j]&&right(j)){const meets=!!(cm(j)&ob);if(meets!==!!(m&bit))ok=false}}}
+    if(ok)out.add(m)}
+  return out}
+function whyPiece(i){if(ways(i,false).size==1)return'edge';if(ways(i,true).size==1)return'match';return null}
+const GLYPH={5:'│',10:'─',3:'└',6:'┌',12:'┐',9:'┘',7:'├',11:'┴',13:'┤',14:'┬',15:'┼',1:'╵',2:'╶',4:'╷',8:'╴',0:''};
+function snapLB(i){return{cols:P.n,cells:P.b.map((m,k)=>[m?GLYPH[cm(k)]:'',(m&&right(k)?'mint':'')+(k==i?' hl':'')])}}
+function trackTurn(i,wasRight){const w=whyPiece(i);if(!w)return;
+  if(wasRight&&!right(i))Lab.logic(w,'missed');           // turned away from the only way it could sit
+  else if(!wasRight&&right(i))Lab.logic(w,'used',{snap:snapLB(i),
+    cap:w=='edge'?'A wire can\'t point off the board, so they turned this '+(i%P.n==0||i%P.n==P.n-1?'edge':'')+' piece the only way it fits.':'They turned this piece to meet its neighbours\' wires.'})}
 $('b').onclick=e=>{
   const t=e.target.closest('.t');if(!t||P.done||t.classList.contains('e'))return;
-  const i=+t.dataset.i;P.r[i]=(P.r[i]+1)%4;P.spin[i]++;
+  const i=+t.dataset.i,wasRight=right(i);P.r[i]=(P.r[i]+1)%4;P.spin[i]++;trackTurn(i,wasRight);
   Lab.sfx('turn');
   const c=update();
   const on=P.bulbs.filter(x=>c.lit.has(x)).length;
@@ -132,6 +149,7 @@ $('hint').onclick=()=>{if(P.done)return;
   const near=i=>D.some(dd=>{const x=i%n+dd[1],y=(i/n|0)+dd[2];return x>=0&&y>=0&&x<n&&y<n&&c.lit.has(y*n+x)});
   const all=b.map((_,i)=>i).filter(wrong),pick=all.find(i=>near(i))??all[0];
   if(pick==null){Lab.msg('Every piece already points the right way.');return}
+  {Lab.hintUsed();const w=whyPiece(pick);if(w)Lab.logic(w,'hint')}   // tracker: a hint, and the rule that would have decided this piece
   P.spin[pick]+=(4-P.r[pick]%4)%4;P.r[pick]=0;Lab.sfx('hint');
   const el=$('b').children[pick];el.classList.add('hinted');setTimeout(()=>el.classList.remove('hinted'),1400);
   const u=update(),on=P.bulbs.filter(x=>u.lit.has(x)).length;if(on>(P.on||0))Lab.sfx('good');P.on=on;

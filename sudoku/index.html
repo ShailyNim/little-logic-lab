@@ -85,7 +85,7 @@ function start(){
   $('lv').textContent=n+'×'+n+' · step '+(S.step+1)+' of 3';
   Lab.msg('Each number once in every row'+(cfg.boxH>1?', column and box.':' and column.'));
   clearInterval(timer);timer=setInterval(()=>{if(!done&&!document.hidden){secs++;stats()}},1000);
-  stats();size();render()}
+  stats();size();render();Lab.puzzleStart(GID)}
 
 const mmss=t=>String(t/60|0).padStart(2,'0')+':'+String(t%60).padStart(2,'0');
 function stats(){$('stats').innerHTML='<span>⏱ <b>'+mmss(secs)+'</b></span><span>🏆 '+S.wins+'/'+cfg.need+' to the next step</span>'}
@@ -116,9 +116,36 @@ $('grid').onclick=e=>{const t=e.target.closest('.cell');if(!t||done)return;const
 $('pad').onclick=e=>{const b=e.target.closest('button');if(b)put(+b.dataset.n)};
 addEventListener('keydown',e=>{if(done)return;if(e.key=='Backspace'||e.key=='Delete')put(0);else if(/^[1-9]$/.test(e.key)&&+e.key<=n)put(+e.key)});
 
+// ---------- logic tracker: which rule made a number certain? ----------
+const realBox=()=>cfg.boxW>1&&cfg.boxH>1;
+const rowI=i=>[...Array(n)].map((_,j)=>(i/n|0)*n+j),colI=i=>[...Array(n)].map((_,j)=>j*n+i%n);
+function boxI(i){const r=i/n|0,c=i%n,br=r-r%cfg.boxH,bc=c-c%cfg.boxW,o=[];for(let y=0;y<cfg.boxH;y++)for(let x=0;x<cfg.boxW;x++)o.push((br+y)*n+bc+x);return o}
+const valsIn=(cells,i)=>new Set(cells.filter(j=>j!=i).map(j=>board[j]).filter(Boolean));
+const candOf=(i,useBox)=>{const u=new Set([...valsIn(rowI(i),i),...valsIn(colI(i),i),...(useBox?valsIn(boxI(i),i):[])]);return[...Array(n)].map((_,k)=>k+1).filter(v=>!u.has(v))};
+function whySd(i,v){
+  const lines=[rowI(i),colI(i)].concat(realBox()?[boxI(i)]:[]);
+  for(const L of lines){const others=L.filter(j=>j!=i).map(j=>board[j]);if(others.every(Boolean)&&new Set(others).size==n-1&&!others.includes(v))return'last'}
+  const a=candOf(i,false);if(a.length==1&&a[0]==v)return'once';
+  if(realBox()){const b=candOf(i,true);if(b.length==1&&b[0]==v)return'box'}
+  // only place for v in one of its lines
+  for(const L of lines){if(L.some(j=>board[j]==v))continue;
+    const spots=L.filter(j=>(j==i||!board[j])&&candOf(j,realBox()).includes(v));if(spots.length==1&&spots[0]==i)return'only'}
+  return null}
+function snapSd(i){return{cols:n,cells:board.map((x,k)=>[x?String(x):'',(given.has(k)?'gold':'')+(k==i?' mint hl':'')])}}
+function trackSd(i,v){const keep=board[i];board[i]=0;
+  if(v!==sol[i]){if(valsIn(rowI(i),i).has(v)||valsIn(colI(i),i).has(v))Lab.logic('once','missed');
+    else if(realBox()&&valsIn(boxI(i),i).has(v))Lab.logic('box','missed');board[i]=keep;return}
+  const w=whySd(i,v);
+  if(w){board[i]=v;const sn=snapSd(i);board[i]=0;const box='row '+((i/n|0)+1)+', box '+(i%n+1);
+    Lab.logic(w,'used',{snap:sn,cap:{last:'Every other number was already in that line, so '+box+' had to be '+v+'.',
+      once:'Its row and column already had every other number, so '+box+' had to be '+v+'.',
+      box:'With the small box checked too, only '+v+' was left for '+box+'.',
+      only:v+' could not go anywhere else in that line, so they put it in '+box+'.'}[w]})}
+  board[i]=keep}
 function put(v){
   if(done)return;if(sel<0){Lab.msg('Tap a box first.');return}
   if(board[sel]==v)return;
+  if(v)trackSd(sel,v);
   hist.push({i:sel,v:board[sel]});board[sel]=v;
   const c=render();
   if(v&&c.has(sel)){errors++;Lab.wobble(document.querySelector('.cell[data-i="'+sel+'"]'));
@@ -150,6 +177,8 @@ $('hint').onclick=()=>{if(done)return;
   const bad=i=>!given.has(i)&&board[i]!==sol[i];
   const pick=sel>=0&&bad(sel)?sel:[...Array(n*n).keys()].find(bad);
   if(pick==null){Lab.msg('Every box is already right.');return}
+  // tracker: a hint, and the rule that would have found this number (if a simple one did)
+  Lab.hintUsed();{const keep=board[pick];board[pick]=0;const w=whySd(pick,sol[pick]);board[pick]=keep;if(w)Lab.logic(w,'hint')}
   board[pick]=sol[pick];given.add(pick);sel=pick;hints++;Lab.sfx('hint');
   const c=render();Lab.msg('💡 That box is '+sol[pick]+'.');
   if(board.every(x=>x)&&!c.size)win()};

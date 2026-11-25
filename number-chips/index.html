@@ -114,7 +114,7 @@ function make(){
     let x=0;while(bad.has(x))x++;cc[k]=x%COL.length});
   P={n,sol:g.sol,cages:g.cages,cof,giv,cc,v:g.sol.map((s,i)=>giv.has(i)?[s]:[]),sel:-1,done:false};
   P.sel=[...Array(n*n).keys()].find(i=>!giv.has(i));
-  Lab.setLevel(GID,lv);Lab.hideWin();
+  Lab.setLevel(GID,lv);Lab.hideWin();Lab.puzzleStart(GID);
   $('lv').textContent='Level '+(lv+1)+' of '+L.length;
   $('prev').disabled=lv==0;$('next').disabled=lv==L.length-1;
   Lab.msg(rule());
@@ -164,10 +164,55 @@ function render(after){
 $('b').onclick=e=>{const t=e.target.closest('.c');if(!t||P.done)return;const i=+t.dataset.i;if(P.giv.has(i))return;P.sel=i;render()};
 $('pad').onclick=e=>{const b=e.target.closest('button');if(b)press(+b.dataset.n)};
 addEventListener('keydown',e=>{if(!P)return;if(e.key=='Backspace'||e.key=='Delete')press(0);else if(/^[1-9]$/.test(e.key)&&+e.key<=P.n)press(+e.key)});
+// ---------- logic tracker: which rule made a number certain? ----------
+// works from what the child can see: boxes holding a single number (their own or given)
+const known=i=>P.v[i].length==1?P.v[i][0]:0;
+const rowOf=i=>[...Array(P.n)].map((_,j)=>(i/P.n|0)*P.n+j),colOf=i=>[...Array(P.n)].map((_,j)=>j*P.n+i%P.n);
+function rowColCands(i){const used=new Set([...rowOf(i),...colOf(i)].filter(j=>j!=i).map(known).filter(Boolean));
+  return[...Array(P.n)].map((_,k)=>k+1).filter(v=>!used.has(v))}
+// numbers box i could hold using only its group's clue (and "no repeats" inside the group's own rows/columns)
+function cageCands(i){const cg=P.cages[P.cof[i]],cells=cg.cells,out=new Set(),vals=cells.map(known);
+  if(cg.op=='=')return[cg.t];
+  const free=cells.map((c,k)=>vals[k]?-1:k).filter(k=>k>=0),cur=vals.slice();
+  (function go(f){if(f==free.length){
+      const s=cells.every((c,k)=>cells.every((d,m)=>m<=k||!(cur[k]==cur[m]&&((c/P.n|0)==(d/P.n|0)||c%P.n==d%P.n))));
+      if(!s)return;const ok=cg.op=='+'?cur.reduce((a,b)=>a+b,0)==cg.t:Math.abs(cur[0]-cur[1])==cg.t;
+      if(ok)out.add(cur[cells.indexOf(i)]);return}
+    for(let v=1;v<=P.n;v++){cur[free[f]]=v;go(f+1)}cur[free[f]]=0})(0);
+  return[...out]}
+function whyNum(i,v){
+  for(const line of[rowOf(i),colOf(i)]){const others=line.filter(j=>j!=i).map(known);
+    if(others.every(Boolean)&&new Set(others).size==P.n-1&&!others.includes(v))return'last'}
+  const rc=rowColCands(i);if(rc.length==1&&rc[0]==v)return'once';
+  const cg=P.cages[P.cof[i]],cc=cageCands(i);
+  if(cc.length==1&&cc[0]==v)return cg.op=='-'?'diff':'bonds';
+  const both=cc.filter(x=>rc.includes(x));if(both.length==1&&both[0]==v)return'combine';
+  return null}
+function snapNC(i,cageHi){const{n}=P;const cells=[];
+  for(let k=0;k<n*n;k++){const a=P.v[k],t=a.length==1?String(a[0]):a.join(' ');
+    cells.push([t,(P.giv.has(k)?'gold':a.length>1?'x':'')+(cageHi&&P.cof[k]==P.cof[i]?' cage':'')+(k==i?' hl':'')])}
+  return{cols:n,cells}}
+const boxName=i=>COLS[i%P.n]+((i/P.n|0)+1);
+// the child is about to put number x into box i (from empty)
+function trackPut(i,x){const w=whyNum(i,x),cg=P.cages[P.cof[i]];
+  if(x!==P.sol[i]){   // a mistake: which rule would have stopped it?
+    if([...rowOf(i),...colOf(i)].some(j=>j!=i&&known(j)==x))Lab.logic('once','missed');
+    else if(cg.op!='='&&cg.cells.filter(c=>c!=i).every(known)){Lab.logic(cg.op=='-'?'diff':'bonds','missed')}
+    return}
+  if(!w)return;
+  const keep=P.v[i];P.v[i]=[x];const sn=snapNC(i,w=='bonds'||w=='diff'||w=='combine');P.v[i]=keep;   // put the same list back (press() adds to it)
+  const cap={last:'Row and column had every other number, so '+boxName(i)+' had to be '+x+'.',
+    once:'Every other number was already in its row or column, so '+boxName(i)+' had to be '+x+'.',
+    bonds:'The group adds up to '+cg.t+', so '+boxName(i)+' had to be '+x+'.',
+    diff:'The two numbers are '+cg.t+' apart, so '+boxName(i)+' had to be '+x+'.',
+    combine:'The group clue and the row together left only '+x+' for '+boxName(i)+'.'}[w];
+  Lab.logic(w,'used',{snap:sn,cap})}
 function press(x){
   if(P.done)return;
   if(P.sel<0){Lab.msg('Tap a box first.');return}
   const a=P.v[P.sel];
+  if(x&&!a.includes(x)){if(a.length==0)trackPut(P.sel,x);
+    else if(a.length==1&&[...a,x].includes(P.sol[P.sel]))Lab.logic('options','used')}   // a second possible number written down
   if(x==0)a.length=0;else{const j=a.indexOf(x);if(j>=0)a.splice(j,1);else{a.push(x);a.sort()}}
   Lab.sfx(x?'place':'undo');
   render(true)}
@@ -186,6 +231,8 @@ $('hint').onclick=()=>{if(P.done)return;
   const bad=i=>!P.giv.has(i)&&!(P.v[i].length==1&&P.v[i][0]==P.sol[i]);
   const pick=bad(P.sel)?P.sel:[...Array(P.n*P.n).keys()].find(bad);
   if(pick==null){Lab.msg('Every box is already right.');return}
+  // tracker: a hint, and the rule that would have found this number (if a simple one did)
+  Lab.hintUsed();{const keep=P.v[pick];P.v[pick]=[];const w=whyNum(pick,P.sol[pick]);P.v[pick]=keep;if(w)Lab.logic(w,'hint')}
   P.v[pick]=[P.sol[pick]];P.giv.add(pick);P.sel=pick;Lab.sfx('hint');render(true);
   if(!P.done)Lab.msg('💡 That box is '+P.sol[pick]+'.')};
 $('reset').onclick=()=>{if(P.done)return;P.v=P.v.map((a,i)=>P.giv.has(i)?a:[]);prevBad=new Set();prevDup=new Set();render();Lab.msg(rule())};

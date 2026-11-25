@@ -86,7 +86,7 @@ function make(r){const[n,sm]=RG[r],open=new Uint8Array(n*n).fill(1),edge=i=>{con
 let lastSig;
 const intro='Slide the 🚀 to visit every dot once.';
 function nxt(){let k=0;do G=make(S.rung);while(G.sig==lastSig&&++k<5);lastSig=G.sig;let e;do e=EM[Math.random()*EM.length|0];while(e==lastEm);G.em=lastEm=e;G.t0=Date.now();
- Lab.hideWin();Lab.setLevel(GID,S.rung);
+ Lab.hideWin();Lab.setLevel(GID,S.rung);Lab.puzzleStart(GID);
  P=[G.start];M={moves:0,undo:0,doom:0,hint:0,bad:0,rs:0,look:[],pause:0,last:Date.now(),dAt:0,dMax:0};
  doomed=done=false;hint=null;lastBad=-1;
  $('lv').textContent='Level '+(S.rung+1)+' of '+RG.length;
@@ -97,9 +97,27 @@ let mt;function msg(t,stay){Lab.msg(t);clearTimeout(mt);if(t&&!stay)mt=setTimeou
 const PEN=[0,2,4,7,9],nf=i=>262*Math.pow(2,(PEN[i%5]+12*Math.floor(i/5))/12);
 function tone(k){if(k=='step')Lab.sfx('step',P.length%15);else if(k=='undo')Lab.sfx('undo')}
 // moves
+// ---------- logic tracker: forced moves, cutting the board, fixing dead ends ----------
+const freeAfter=p=>{const s=new Set();for(let i=0;i<G.n*G.n;i++)if(G.open[i]&&!p.includes(i))s.add(i);return s};
+function doomedAfter(p){if(!reach(G.n,G.open,p))return true;if(complete(G.n,G.open,p,10))return false;const r=count(G.n,G.open,p,1,20000);return!r.over&&r.cnt==0}
+// the moves the rocket could make now, and which of them keep the trail finishable / keep the board in one piece
+function choices(){const h=P[P.length-1],free=freeAfter(P),c=nb(G.n,h).filter(x=>free.has(x));
+  return c.map(x=>({x,ok:!doomedAfter([...P,x]),cuts:freeAfter([...P,x]).size>0&&!reach(G.n,G.open,[...P,x])}))}
+function snapST(q){const n=G.n,cells=[];for(let i=0;i<n*n;i++){const on=P.includes(i)||i==q;
+  cells.push([!G.open[i]?'':i==q?'🚀':on?'':'•',(on?'path':'')+(i==q?' hl':'')])}return{cols:n,cells}}
+function trackStep(q){if(doomed)return;const ch=choices();if(ch.length<2)return;
+  const good=ch.filter(c=>c.ok),me=ch.find(c=>c.x==q);if(!me)return;
+  if(good.length==1){   // only one move keeps the trail finishable: a forced move
+    if(me.ok)Lab.logic('forced','used',{snap:snapST(q),cap:'That dot had only one way left to reach it, so they went there straight away.'});
+    else Lab.logic('forced','missed');return}
+  if(ch.some(c=>c.cuts)){
+    if(me.cuts)Lab.logic('cut','missed');
+    else Lab.logic('cut','used',{snap:snapST(q),cap:'They chose a move that kept all the dots joined up.'})}}
 function step(q){const now=Date.now();
- if(P.length>1&&q==P[P.length-2]){P.pop();M.undo++;tone('undo');if(doomed&&!isD()){doomed=false;M.look.push(M.dMax-M.dAt);msg('Nice fix!')}return 1}
+ if(P.length>1&&q==P[P.length-2]){P.pop();M.undo++;tone('undo');if(doomed&&!isD()){doomed=false;M.look.push(M.dMax-M.dAt);msg('Nice fix!');
+   Lab.logic('back','used',{snap:snapST(P[P.length-1]),cap:'They got stuck, slid back to where it went wrong and found a way through.'})}return 1}
  if(!G.open[q]){if(q!=lastBad){M.bad++;lastBad=q}return 0}
+ if(!P.includes(q))trackStep(q);
  if(P.includes(q))return 0;
  M.pause=Math.max(M.pause,now-M.last);M.last=now;P.push(q);M.moves++;tone('step');
  if(P.length==2&&!doomed)msg('');
@@ -126,8 +144,9 @@ function finish(res){if(doomed)M.look.push(M.dMax-M.dAt);const t=Date.now()-G.t0
 function win(){done=true;finish('solved');msg('You visited every dot!',true);
  setTimeout(()=>{Lab.win({game:GID,hero:G.em,sticker:G.em,lesson:'A trail that visits every dot once is a clever path.',next:nxt,nextLabel:'Next trail'})},900)}
 $('kb').onclick=()=>{if(!done){finish('skip');nxt()}};
-$('rb').onclick=()=>{if(done)return;M.rs++;if(doomed)M.look.push(M.dMax-M.dAt);P=[G.start];doomed=false;msg(intro,true)};
+$('rb').onclick=()=>{if(done)return;M.rs++;if(doomed){M.look.push(M.dMax-M.dAt);Lab.logic('back','missed')}P=[G.start];doomed=false;msg(intro,true)};
 $('hb').onclick=()=>{if(done)return;if(doomed){msg('Slide back a bit first ⬅️');return}
+ Lab.hintUsed();{const ch=choices(),g=ch.filter(c=>c.ok);if(ch.length>1&&g.length==1)Lab.logic('forced','hint')}
  const r={first:complete(G.n,G.open,P,40)||count(G.n,G.open,P,1,60000).first};if(r.first){M.hint++;Lab.sfx('hint');hint={c:[P[P.length-1],...r.first.slice(0,3)],u:Date.now()+3000};msg('Follow the gold dashes.')}};
 // draw (colours come from the shared Sea glass tokens, so dim mode applies too)
 function colours(){const cs=getComputedStyle(document.documentElement),g=k=>cs.getPropertyValue(k).trim();

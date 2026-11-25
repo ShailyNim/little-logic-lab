@@ -13,6 +13,8 @@
 .top .logo{font-size:30px}
 .sub{margin:0;font-size:15px;font-weight:600;color:var(--text-soft);flex:1}
 .subrow{display:flex;align-items:center;gap:8px;flex:none}
+.gu-link{flex:none;align-self:center;font:700 14px var(--font);color:var(--text-soft);text-decoration:none;padding:10px 14px;border-radius:99px}
+.gu-link:hover,.gu-link:focus-visible{background:var(--raised);color:var(--text)}
 .book-btn{height:44px;display:inline-flex;align-items:center;gap:6px;padding:0 14px 0 10px;border-radius:var(--r-pill);background:var(--raised);
   color:var(--text);font:800 15px var(--font);text-decoration:none;flex:none;box-shadow:inset 0 0 0 3px var(--sun)}
 .book-btn:active{transform:scale(.96)}
@@ -45,6 +47,7 @@
   </header>
   <div class="subrow"><p class="sub">Pick a puzzle to play.</p><a class="book-btn" href="stickers/"><span aria-hidden="true">📒</span> My stickers <b id="stkN"></b></a></div>
   <nav class="tiles" id="tiles"></nav>
+  <a class="gu-link" href="grown-ups/"><span aria-hidden="true">👪</span> Grown-ups corner</a>
 </main>
 <script>
 const GAMES=[
