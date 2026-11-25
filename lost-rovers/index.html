@@ -52,12 +52,12 @@ body{--accent:var(--sky);--on-accent:var(--on-sky);--g:4px}
   </div>
 </main>
 <script>
-// n grid size, f rover lengths (1 scout, 2 rover, 3 truck, 4 hauler), r whole rovers shown at the start.
+// n grid size, f craft lengths (1 rover, 2 rocket, 3 satellite, 4 big rocket), r whole craft shown at the start.
 // Every puzzle must be solvable with one-step moves only (see kidSolve), so a bigger grid only means more to do,
 // never harder thinking.
 const L=[{n:3,f:[1,1],r:1},{n:4,f:[1,1,1],r:1},{n:4,f:[2,1,1],r:1},{n:5,f:[2,2,1],r:1},
  {n:5,f:[3,2,1],r:0},{n:6,f:[3,2,2,1],r:0},{n:6,f:[4,2,1,1],r:0},{n:6,f:[4,3,2,1],r:0}];
-const NAME={1:'scout',2:'rover',3:'truck',4:'hauler'},COLS='ABCDEF',GID='rovers',G4=4;
+const NAME={1:'rover',2:'rocket',3:'satellite',4:'big rocket'},COLS='ABCDEF',GID='rovers',G4=4;
 Lab.setupGame({id:GID,
   demo:'rovers',caption:'Drag rovers in. Tap to cross out.',
   art:()=>vehicle(2,44,'h').replace('<svg ','<svg style="width:100%;height:100%;overflow:visible" '),
@@ -142,40 +142,45 @@ function turnSpot(it,tapped){const n=P.n,old=it.pos,nd=old.dir=='h'?'v':'h',X=ce
 function size(){if(!P)return;const k=P.n+2;
   S=Math.max(24,Math.min(64,Math.floor((Math.min(area.w,area.h)-20-G4*(k-1))/k)));
   $('g').style.setProperty('--s',S+'px');$('g').style.setProperty('--k',k)}
-// ---------- vehicle drawings: scout 1, rover 2, truck 3, hauler 4 boxes long ----------
-// Drawn side-on, front (robot cab) at the left over the first box; turned rovers are the same drawing
-// rotated a quarter turn, so the cab sits on the top box.
-const INK='#0E3550',BODY='#8FC3E6',SHADE='#6FA9D3',GLASS='#D7F2E8',SUN='#F3CF6B',LAV='#B9A6E3',MINT='#7CCDB3',HUB='#E3F1FB';
+// ---------- the space fleet: rover 1 box, rocket 2, satellite 3, big rocket 4 ----------
+// Each craft is drawn flat and points along its length, front at the LEFT. A turned craft is the same
+// drawing rotated a quarter turn, so its front sits on the top box (a rocket stood up points to the sky).
+const INK='#0E3550',SKY='#8FC3E6',DEEP='#5E9BCB',HULL='#F4F7FA',GLASS='#D7F2E8',SUN='#F3CF6B',LAV='#B9A6E3',PINK='#F2A7C6',APRICOT='#F5B97F',HUB='#E3F1FB';
 function vehicle(len,u,dir){
-  const g=G4,W=len*u+(len-1)*g,cx=i=>i*(u+g)+u/2,sw=Math.max(1,u*.05),f=v=>+v.toFixed(1);
-  const R=(x,y,w,h,r,fill,st=1)=>'<rect x="'+f(x)+'" y="'+f(y)+'" width="'+f(w)+'" height="'+f(h)+'" rx="'+f(r)+'" fill="'+fill+'"'+(st?' stroke="'+INK+'" stroke-width="'+f(sw*st)+'"':'')+'/>';
-  const C=(x,y,r,fill,st=1)=>'<circle cx="'+f(x)+'" cy="'+f(y)+'" r="'+f(r)+'" fill="'+fill+'"'+(st?' stroke="'+INK+'" stroke-width="'+f(sw*st)+'"':'')+'/>';
-  const Ln=(x1,y1,x2,y2,w=1)=>'<line x1="'+f(x1)+'" y1="'+f(y1)+'" x2="'+f(x2)+'" y2="'+f(y2)+'" stroke="'+INK+'" stroke-width="'+f(sw*w)+'" stroke-linecap="round"/>';
+  const g=G4,W=len*u+(len-1)*g,cx=i=>i*(u+g)+u/2,c=u/2,sw=Math.max(1,u*.04),f=v=>+v.toFixed(1);
+  const st=o=>o?' stroke="'+INK+'" stroke-width="'+f(sw*o)+'" stroke-linejoin="round"':'';
+  const R=(x,y,w,h,r,fill,o=1)=>'<rect x="'+f(x)+'" y="'+f(y)+'" width="'+f(w)+'" height="'+f(h)+'" rx="'+f(r)+'" fill="'+fill+'"'+st(o)+'/>';
+  const C=(x,y,r,fill,o=1)=>'<circle cx="'+f(x)+'" cy="'+f(y)+'" r="'+f(r)+'" fill="'+fill+'"'+st(o)+'/>';
+  const Pg=(pts,fill,o=1)=>'<polygon points="'+pts.map(p=>p.map(f).join(',')).join(' ')+'" fill="'+fill+'"'+st(o)+'/>';
+  const Pa=(d,fill,o=1)=>'<path d="'+d+'" fill="'+fill+'"'+st(o)+'/>';
+  const Ln=(x1,y1,x2,y2,w=1,col=INK)=>'<line x1="'+f(x1)+'" y1="'+f(y1)+'" x2="'+f(x2)+'" y2="'+f(y2)+'" stroke="'+col+'" stroke-width="'+f(sw*w)+'" stroke-linecap="round"/>';
   let s='';
-  // wheels: two small ones under a scout, one under each box for longer rovers
-  const wx=len==1?[u*.28,u*.72]:Array.from({length:len},(_,i)=>cx(i));
-  // the deck on top, then the cab and cargo, then the wheels in front
-  // cargo first so the cab overlaps it neatly
-  for(let i=1;i<len;i++){const x=cx(i);
-    const kind=len==2?'dish':len==3?(i==1?'solar':'crate'):(i==1?'crate':i==2?'tank':'drill');
-    const P_=(pts,fill=LAV)=>'<polygon points="'+pts.map(p=>p.map(f).join(',')).join(' ')+'" fill="'+fill+'" stroke="'+INK+'" stroke-width="'+f(sw)+'" stroke-linejoin="round"/>';
-    // dish: a satellite bowl on a post, listening for signals
-    if(kind=='dish'){s+=Ln(x,u*.52,x,u*.36,1.4)+'<path d="M'+f(x-u*.36)+' '+f(u*.1)+' Q'+f(x)+' '+f(u*.6)+' '+f(x+u*.36)+' '+f(u*.1)+' Z" fill="'+LAV+'" stroke="'+INK+'" stroke-width="'+f(sw)+'" stroke-linejoin="round"/>'+Ln(x,u*.32,x+u*.14,u*.08)+C(x+u*.14,u*.07,u*.065,SUN)}
-    // solar panel: a tilted lavender panel with grid lines
-    if(kind=='solar'){s+=Ln(x,u*.52,x,u*.42,1.4)+P_([[x-u*.42,u*.42],[x+u*.38,u*.42],[x+u*.28,u*.08],[x-u*.32,u*.08]])+Ln(x-u*.02,u*.09,x-u*.02,u*.41,.7)+Ln(x-u*.37,u*.25,x+u*.33,u*.25,.7)}
-    // crate: a sunny yellow box with a cross
-    if(kind=='crate'){s+=R(x-u*.38,u*.08,u*.76,u*.46,u*.07,SUN)+Ln(x-u*.38,u*.08,x+u*.38,u*.54,.7)+Ln(x+u*.38,u*.08,x-u*.38,u*.54,.7)}
-    // tank: a rounded mint water tank with bands
-    if(kind=='tank'){s+=R(x-u*.42,u*.12,u*.84,u*.42,u*.2,MINT)+Ln(x-u*.14,u*.13,x-u*.14,u*.53,.7)+Ln(x+u*.14,u*.13,x+u*.14,u*.53,.7)}
-    // drill: an arm with a yellow drill bit, for digging up rocks
-    if(kind=='drill'){s+=Ln(x-u*.26,u*.5,x+u*.12,u*.16,2.6)+P_([[x+u*.02,u*.14],[x+u*.26,u*.22],[x+u*.42,u*.02]],SUN)+C(x-u*.26,u*.5,u*.08,SHADE)}}
-  // deck (body) across the whole rover, with a darker stripe
-  s+=R(u*.04,u*.5,W-u*.08,u*.28,u*.13,BODY)+R(u*.12,u*.66,W-u*.24,u*.05,u*.025,SHADE,0);
-  // cab with a robot face on the first box, antenna on top
-  s+=Ln(u*.7,u*.14,u*.8,u*.03,1.1)+C(u*.8,u*.04,u*.065,SUN);
-  s+=R(u*.08,u*.1,u*.76,u*.48,u*.2,BODY)+R(u*.16,u*.18,u*.58,u*.26,u*.1,GLASS,.7)+C(u*.35,u*.31,u*.055,INK,0)+C(u*.55,u*.31,u*.055,INK,0);
-  s+=C(u*.06,u*.62,u*.055,SUN,.7);   // headlight
-  s+=wx.map(x=>C(x,u*.84,u*.15,INK,0)+C(x,u*.84,u*.065,HUB,0)).join('');
+  if(len==1){
+    // a cute little rover: round body, a screen face with a smile, an antenna and two chunky wheels
+    s+=Ln(u*.62,u*.2,u*.72,u*.06,1.2)+C(u*.72,u*.06,u*.06,SUN);
+    s+=R(u*.12,u*.2,u*.76,u*.5,u*.2,SKY);
+    s+=R(u*.22,u*.28,u*.5,u*.28,u*.1,GLASS,.8)+C(u*.38,u*.4,u*.045,INK,0)+C(u*.56,u*.4,u*.045,INK,0)+
+       Pa('M'+f(u*.4)+' '+f(u*.48)+' Q'+f(u*.47)+' '+f(u*.53)+' '+f(u*.54)+' '+f(u*.48),'none',.7);
+    s+=C(u*.13,u*.56,u*.05,SUN,.6);                                   // headlight
+    s+=[u*.3,u*.7].map(x=>C(x,u*.78,u*.15,INK,0)+C(x,u*.78,u*.065,HUB,0)).join('');
+  }else if(len==3){
+    // satellite: blue solar panels on both ends, a gold body with a dish in the middle
+    s+=Ln(cx(0),c,cx(2),c,1.6);
+    [0,2].forEach(i=>{const x=cx(i);s+=R(x-u*.42,c-u*.36,u*.84,u*.72,u*.05,DEEP);
+      for(let k=1;k<4;k++)s+=Ln(x-u*.42+k*u*.21,c-u*.36,x-u*.42+k*u*.21,c+u*.36,.5,'#BFE0F5');s+=Ln(x-u*.42,c,x+u*.42,c,.5,'#BFE0F5')});
+    const m=cx(1);s+=R(m-u*.32,c-u*.32,u*.64,u*.64,u*.08,SUN)+Ln(m-u*.24,c-u*.13,m+u*.24,c-u*.13,.5,'#C9A13C')+Ln(m-u*.24,c+u*.13,m+u*.24,c+u*.13,.5,'#C9A13C');
+    s+=C(m,c,u*.21,HULL)+C(m,c,u*.1,LAV,.8)+Ln(m,c,m+u*.08,c-u*.38,1)+C(m+u*.08,c-u*.4,u*.055,PINK,.8);
+  }else{
+    // rocket (2 boxes) or big rocket (4): pink nose at the front, round windows, blue fins and a little flame
+    const b0=W*.2,b1=W*.86,h=u*.26;
+    s+=Pg([[W*.88,c-h*.5],[W*.995,c-h*.25],[W*.97,c],[W*.995,c+h*.25],[W*.88,c+h*.5]],APRICOT,.6)+Pg([[W*.88,c-h*.28],[W*.955,c],[W*.88,c+h*.28]],SUN,0);
+    s+=Pg([[W*.62,c-h],[W*.8,c-h],[W*.9,c-u*.47],[W*.76,c-u*.45]],SKY)+Pg([[W*.62,c+h],[W*.8,c+h],[W*.9,c+u*.47],[W*.76,c+u*.45]],SKY);
+    s+=R(b0,c-h,b1-b0,h*2,h*.6,HULL);
+    s+=Pa('M'+f(b0+2)+' '+f(c-h)+' C'+f(W*.09)+' '+f(c-h)+' '+f(W*.02)+' '+f(c-h*.35)+' '+f(W*.015)+' '+f(c)+' C'+f(W*.02)+' '+f(c+h*.35)+' '+f(W*.09)+' '+f(c+h)+' '+f(b0+2)+' '+f(c+h)+' Z',PINK);
+    s+=R(W*.5,c-h,W*.05,h*2,0,LAV,.6);
+    (len>=4?[W*.31,W*.42]:[W*.36]).forEach(x=>s+=C(x,c,u*.12,GLASS,1.2)+C(x-u*.03,c-u*.03,u*.03,'#fff',0));
+    if(len>=4)s+=R(W*.66,c-h,W*.03,h*2,0,PINK,.6);
+  }
   const inner=dir=='v'?'<g transform="translate('+f(u)+',0) rotate(90)">'+s+'</g>':s;
   return '<svg viewBox="0 0 '+f(dir=='v'?u:W)+' '+f(dir=='v'?W:u)+'" aria-hidden="true">'+inner+'</svg>'}
 function roverHTML(it,cls,extra){
@@ -232,7 +237,7 @@ addEventListener('pointerup',e=>{
     P.marks.has(d.cell)?P.marks.delete(d.cell):P.marks.add(d.cell);Lab.sfx('mark');draw();return}
   const it=P.fleet[d.k];
   if(!d.moved){
-    if(it.len==1){if(d.fromTray)Lab.msg('Drag the scout onto the grid.');return}
+    if(it.len==1){if(d.fromTray)Lab.msg('Drag the rover onto the grid.');return}
     if(d.fromTray){   // turn it in the tray, so it drops onto the grid the way it now points
       it.trayDir=(it.trayDir||'h')=='h'?'v':'h';Lab.sfx('turn');draw();
       Lab.msg('Now it goes '+(it.trayDir=='v'?'down':'across')+'. Drag it in.');return}
