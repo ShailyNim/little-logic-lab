@@ -41,13 +41,15 @@ body{--accent:var(--lavender);--on-accent:var(--on-lavender)}
 </main>
 <script>
 // n grid size, ops a=add s=subtract m=mixed, w = relative chance of 1-, 2- and 3-box groups,
-// sp = how many single-box hints may be added to make the answer unique before trying a fresh layout
+// sp = how many single-box hints may be added to make the answer unique before trying a fresh layout,
+// t = [lowest, highest] thinking tier a puzzle on this level may need (see tierSolveNC): thinking gets harder as
+// levels go up, never too early. Each new grid size or operation starts gently.
 const L=[
- {n:3,ops:'a',w:[5,5,0],sp:9},{n:3,ops:'a',w:[3,6,1],sp:2},{n:3,ops:'a',w:[2,5,3],sp:2},
- {n:3,ops:'s',w:[3,7,0],sp:2},{n:3,ops:'m',w:[2,6,2],sp:2},
- {n:4,ops:'a',w:[4,6,0],sp:3},{n:4,ops:'a',w:[2,5,3],sp:2},{n:4,ops:'s',w:[2,8,0],sp:2},
- {n:4,ops:'m',w:[2,6,2],sp:2},{n:4,ops:'m',w:[1,6,3],sp:1},
- {n:5,ops:'a',w:[3,5,2],sp:3},{n:5,ops:'m',w:[2,6,2],sp:2},{n:5,ops:'m',w:[1,6,3],sp:1}];
+ {n:3,ops:'a',w:[5,5,0],sp:9,t:[1,2]},{n:3,ops:'a',w:[3,6,1],sp:2,t:[1,2]},{n:3,ops:'a',w:[2,5,3],sp:2,t:[2,2]},
+ {n:3,ops:'s',w:[3,7,0],sp:2,t:[1,2]},{n:3,ops:'m',w:[2,6,2],sp:2,t:[2,3]},
+ {n:4,ops:'a',w:[4,6,0],sp:3,t:[1,2]},{n:4,ops:'a',w:[2,5,3],sp:2,t:[2,3]},{n:4,ops:'s',w:[2,8,0],sp:2,t:[2,3]},
+ {n:4,ops:'m',w:[2,6,2],sp:2,t:[3,3]},{n:4,ops:'m',w:[1,6,3],sp:1,t:[3,3]},
+ {n:5,ops:'a',w:[3,5,2],sp:3,t:[2,3]},{n:5,ops:'m',w:[2,6,2],sp:2,t:[3,4]},{n:5,ops:'m',w:[1,6,3],sp:1,t:[4,4]}];
 // soft pastel tints so touching groups look different
 const COL=['var(--sky-t)','var(--sun-t)','var(--pink-t)','var(--mint-t)','var(--lavender-t)','var(--apricot-t)'];
 const GID='chips';
@@ -93,28 +95,47 @@ function count(n,cages){const cof=cofOf(n,cages),g=Array(n*n).fill(0),rs=Array(n
       rem[k]++;sum[k]-=v;g[i]=0}})(0);
   return cnt}
 
-// Kid-level solver: fills boxes using only the simple rules a young child can see, one box at a time:
-// last one missing, once per row and column, a group's sum or difference on its own, or a group clue and the
-// row/column together (the same rules the logic tracker looks for). Returns the boxes it could not fill.
-function kidSolveNC(n,cages,vals){const v=vals.slice(),cof=cofOf(n,cages);
+// Kid-level solver: fills boxes one at a time using the same rules the logic tracker looks for, always trying
+// the easiest kind of thinking first, so it can tell which tier a puzzle really needs.
+// Thinking tiers: 1 last one missing / once per row and column, 2 a group's sum or difference on its own,
+// 3 a group clue and the row/column together, 4 testing an idea ("if this were 2, that group couldn't add up").
+// Returns {left: boxes it couldn't fill, top: highest tier it needed}.
+function tierSolveNC(n,cages,vals,maxT){const cof=cofOf(n,cages);let v=vals.slice(),top=1;
   const row=i=>[...Array(n)].map((_,j)=>(i/n|0)*n+j),col=i=>[...Array(n)].map((_,j)=>j*n+i%n);
-  function rcCands(i){const u=new Set([...row(i),...col(i)].filter(j=>j!=i).map(j=>v[j]).filter(Boolean));return[...Array(n)].map((_,k)=>k+1).filter(x=>!u.has(x))}
-  function cageCands(i){const cg=cages[cof[i]],cs=cg.cells,out=new Set(),cur=cs.map(c=>v[c]);if(cg.op=='=')return[cg.t];
+  const rcC=(v,i)=>{const u=new Set([...row(i),...col(i)].filter(j=>j!=i).map(j=>v[j]).filter(Boolean));return[...Array(n)].map((_,k)=>k+1).filter(x=>!u.has(x))};
+  function cgC(v,i){const cg=cages[cof[i]],cs=cg.cells,out=new Set(),cur=cs.map(c=>v[c]);if(cg.op=='=')return[cg.t];
     const free=cs.map((c,k)=>cur[k]?-1:k).filter(k=>k>=0);
     (function go(f){if(f==free.length){
         if(!cs.every((c,k)=>cs.every((d,m)=>m<=k||!(cur[k]==cur[m]&&((c/n|0)==(d/n|0)||c%n==d%n)))))return;
         if(cg.op=='+'?cur.reduce((a,b)=>a+b,0)==cg.t:Math.abs(cur[0]-cur[1])==cg.t)out.add(cur[cs.indexOf(i)]);return}
       for(let x=1;x<=n;x++){cur[free[f]]=x;go(f+1)}cur[free[f]]=0})(0);
     return[...out]}
-  function forced(i){
-    for(const line of[row(i),col(i)]){const o=line.filter(j=>j!=i).map(j=>v[j]);if(o.every(Boolean)&&new Set(o).size==n-1)
-      return[...Array(n)].map((_,k)=>k+1).find(x=>!o.includes(x))}
-    const rc=rcCands(i);if(rc.length==1)return rc[0];
-    const cc=cageCands(i);if(cc.length==1)return cc[0];
-    const both=cc.filter(x=>rc.includes(x));if(both.length==1)return both[0];
+  // does the board break a rule? (a number twice in a line, or a finished group with the wrong total/difference)
+  function broken(v){for(let i=0;i<n*n;i++){if(!v[i])continue;for(const j of[...row(i),...col(i)])if(j!=i&&v[j]==v[i])return true}
+    return cages.some(cg=>{if(cg.op=='='||!cg.cells.every(c=>v[c]))return false;const vs=cg.cells.map(c=>v[c]);
+      return(cg.op=='+'?vs.reduce((a,b)=>a+b,0):Math.abs(vs[0]-vs[1]))!==cg.t})}
+  // fill one box using the lowest tier possible (up to mt); returns the tier used, 0 if none, -1 if the board breaks a rule
+  function one(v,mt){if(broken(v))return-1;
+    for(let t=1;t<=Math.min(mt,3);t++)for(let i=0;i<n*n;i++){if(v[i])continue;
+      const rc=rcC(v,i);if(!rc.length)return-1;
+      let x=0;
+      if(t==1){for(const line of[row(i),col(i)]){const o=line.filter(j=>j!=i).map(j=>v[j]);if(o.every(Boolean)&&new Set(o).size==n-1)x=[...Array(n)].map((_,k)=>k+1).find(y=>!o.includes(y))}
+        if(!x&&rc.length==1)x=rc[0]}
+      else{const cc=cgC(v,i);if(!cc.length)return-1;
+        if(t==2&&cc.length==1)x=cc[0];
+        if(t==3){const both=cc.filter(y=>rc.includes(y));if(!both.length)return-1;if(both.length==1)x=both[0]}}
+      if(x){v[i]=x;return t}}
     return 0}
-  for(let moved=true;moved;){moved=false;for(let i=0;i<n*n;i++)if(!v[i]){const x=forced(i);if(x){v[i]=x;moved=true}}}
-  return[...Array(n*n).keys()].filter(i=>!v[i])}
+  const run=(v,mt)=>{let hi=1;for(;;){const t=one(v,mt);if(t<0)return-1;if(!t)return hi;hi=Math.max(hi,t)}};
+  for(;;){const r=run(v,maxT);if(r<0)return{left:[...Array(n*n).keys()].filter(i=>!v[i]),top:-1};top=Math.max(top,r);
+    if(v.every(Boolean)||maxT<4)break;
+    // tier 4: try each possible number in a box; if all but one break a rule, that one is right
+    let found=false;
+    for(let i=0;i<n*n&&!found;i++){if(v[i])continue;const ok=[];
+      for(let x=1;x<=n;x++){const c=v.slice();c[i]=x;if(run(c,3)>=0)ok.push(x)}
+      if(ok.length==1){v[i]=ok[0];found=true;top=4}}
+    if(!found)break}
+  return{left:[...Array(n*n).keys()].filter(i=>!v[i]),top}}
 function gen(d){const n=d.n;
   for(let t=0;;t++){const sol=latin(n);let cages=part(n,sol,d),sp=0;
     while(count(n,cages)>1){
@@ -123,12 +144,13 @@ function gen(d){const n=d.n;
       const x=m[rnd(m.length)];cages=cages.filter(c=>c!=x);
       x.cells.forEach(c=>cages.push({cells:[c],op:'=',t:sol[c]}));sp++}
     if(count(n,cages)!=1)continue;
-    // keep only puzzles a child can finish with simple, one-step thinking
-    const start=sol.map((s,i)=>cages.some(c=>c.op=='='&&c.cells[0]==i)?s:0);
-    if(!kidSolveNC(n,cages,start).length)return{sol,cages,extra:[]};
-    // after many tries, rather than hand out a puzzle that needs guessing, fill in the box the solver got stuck on
-    if(t>=80){const extra=[];let left=kidSolveNC(n,cages,start);
-      while(left.length){const c=left[0];extra.push(c);start[c]=sol[c];left=kidSolveNC(n,cages,start)}
+    // keep only puzzles that need this level's kind of thinking (within d.t): harder as levels go up, never too early.
+    // After many tries, relax the lowest tier; after many more, fill in the box the solver got stuck on.
+    const start=sol.map((s,i)=>cages.some(c=>c.op=="="&&c.cells[0]==i)?s:0);
+    const r=tierSolveNC(n,cages,start,d.t[1]),lo=t<120?d.t[0]:1;
+    if(!r.left.length&&r.top>=lo)return{sol,cages,extra:[]};
+    if(t>=240){const extra=[];let left=r.left;
+      while(left.length){const c=left[0];extra.push(c);start[c]=sol[c];left=tierSolveNC(n,cages,start,d.t[1]).left}
       return{sol,cages,extra}}}}
 
 function rule(){const o=L[lv].ops;
@@ -216,6 +238,9 @@ function whyNum(i,v){
   const cg=P.cages[P.cof[i]],cc=cageCands(i);
   if(cc.length==1&&cc[0]==v)return cg.op=='-'?'diff':'bonds';
   const both=cc.filter(x=>rc.includes(x));if(both.length==1&&both[0]==v)return'combine';
+  // testing an idea: every other number here breaks a rule within a few simple steps
+  const vals=P.v.map(a=>a.length==1?a[0]:0);vals[i]=0;
+  if([...Array(P.n)].map((_,k)=>k+1).filter(y=>y!=v).every(y=>{const c=vals.slice();c[i]=y;return tierSolveNC(P.n,P.cages,c,3).top==-1}))return'whatif';
   return null}
 function snapNC(i,cageHi){const{n}=P;const cells=[];
   for(let k=0;k<n*n;k++){const a=P.v[k],t=a.length==1?String(a[0]):a.join(' ');
@@ -234,7 +259,8 @@ function trackPut(i,x){const w=whyNum(i,x),cg=P.cages[P.cof[i]];
     once:'Every other number was already in its row or column, so '+boxName(i)+' had to be '+x+'.',
     bonds:'The group adds up to '+cg.t+', so '+boxName(i)+' had to be '+x+'.',
     diff:'The two numbers are '+cg.t+' apart, so '+boxName(i)+' had to be '+x+'.',
-    combine:'The group clue and the row together left only '+x+' for '+boxName(i)+'.'}[w];
+    combine:'The group clue and the row together left only '+x+' for '+boxName(i)+'.',
+    whatif:'No single clue decided '+boxName(i)+', but every other number would have broken a rule, so it had to be '+x+'.'}[w];
   Lab.logic(w,'used',{snap:sn,cap})}
 function press(x){
   if(P.done)return;

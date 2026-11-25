@@ -52,9 +52,10 @@ Lab.setupGame({id:GID,
   demo:'sudoku',caption:'Tap a box, then a number.',
   stickers:['😊']});
 const M={
-  3:{steps:[5,4,3],boxW:3,boxH:1,next:4,need:2},
-  4:{steps:[9,7,6],boxW:2,boxH:2,next:5,need:3},
-  5:{steps:[14,11,9],boxW:5,boxH:1,next:3,need:4}};
+  3:{steps:[5,4,3],t:[[1,1],[1,2],[2,2]],boxW:3,boxH:1,next:4,need:2},
+  4:{steps:[9,7,6],t:[[1,2],[2,2],[2,3]],boxW:2,boxH:2,next:5,need:3},
+  5:{steps:[14,11,9],t:[[2,2],[2,3],[3,3]],boxW:5,boxH:1,next:3,need:4}};
+// t: per step, [lowest, highest] thinking tier a puzzle may need (see tierSolveSd): harder as steps and grids go up
 const DEF={size:3,step:0,wins:0,best:null,gems:0,hearts:0,smiles:0};
 const PRAISE=['You did it!','Great thinking!','Puzzle solved!','Super sorting!','Brain power!'];
 const $=i=>document.getElementById(i);
@@ -76,28 +77,46 @@ function ok(g,i,v){const r=i/n|0,c=i%n,{boxW,boxH}=cfg;
   for(let y=0;y<boxH;y++)for(let x=0;x<boxW;x++)if(g[(br+y)*n+bc+x]==v)return false;
   return true}
 
-// Kid-level solver: fills boxes using only the simple rules a young child can see (the same rules the logic
-// tracker looks for): last one missing, once per row and column (and box on 4×4), and only place for it in a line.
-// Returns the boxes it could not fill.
-function kidSolveSd(vals){const v=vals.slice(),box=cfg.boxW>1&&cfg.boxH>1;
+// Kid-level solver with thinking tiers (the same rules the logic tracker looks for), always trying the easiest first:
+//  1 last one missing in a row, column (or box), 2 once per row and column (and box on 4x4) leaves one number,
+//  3 only place for a number in a line, 4 testing an idea (if this were 2, some box would have no number left).
+// Returns {left: boxes it could not fill, top: highest tier it needed}.
+function tierSolveSd(vals,maxT){let v=vals.slice(),top=1;const box=cfg.boxW>1&&cfg.boxH>1;
   const row=i=>[...Array(n)].map((_,j)=>(i/n|0)*n+j),col=i=>[...Array(n)].map((_,j)=>j*n+i%n);
   const bx=i=>{const r=i/n|0,c=i%n,br=r-r%cfg.boxH,bc=c-c%cfg.boxW,o=[];for(let y=0;y<cfg.boxH;y++)for(let x=0;x<cfg.boxW;x++)o.push((br+y)*n+bc+x);return o};
   const lines=i=>[row(i),col(i)].concat(box?[bx(i)]:[]);
-  const cand=i=>{const u=new Set(lines(i).flat().filter(j=>j!=i).map(j=>v[j]).filter(Boolean));return[...Array(n)].map((_,k)=>k+1).filter(x=>!u.has(x))};
-  for(let moved=true;moved;){moved=false;
-    for(let i=0;i<n*n;i++){if(v[i])continue;
-      const c=cand(i);if(c.length==1){v[i]=c[0];moved=true;continue}       // last one missing / once per row, column (and box)
-      for(const L of lines(i)){let done=false;for(const x of c){if(L.some(j=>v[j]==x))continue;   // only place for x in this line
-        if(L.filter(j=>!v[j]&&cand(j).includes(x)).length==1){v[i]=x;moved=true;done=true;break}}if(done)break}}}
-  return[...Array(n*n).keys()].filter(i=>!v[i])}
+  const cand=(v,i)=>{const u=new Set(lines(i).flat().filter(j=>j!=i).map(j=>v[j]).filter(Boolean));return[...Array(n)].map((_,k)=>k+1).filter(x=>!u.has(x))};
+  function one(v,mt){
+    for(let i=0;i<n*n;i++){if(v[i])continue;if(!cand(v,i).length)return-1}
+    for(let t=1;t<=Math.min(mt,3);t++)for(let i=0;i<n*n;i++){if(v[i])continue;let x=0;
+      if(t==1){for(const L of lines(i)){const o=L.filter(j=>j!=i).map(j=>v[j]);if(o.every(Boolean)&&new Set(o).size==n-1)x=[...Array(n)].map((_,k)=>k+1).find(y=>!o.includes(y))}}
+      if(t==2){const c=cand(v,i);if(c.length==1)x=c[0]}
+      if(t==3){for(const L of lines(i)){for(const y of cand(v,i)){if(L.some(j=>v[j]==y))continue;if(L.filter(j=>!v[j]&&cand(v,j).includes(y)).length==1){x=y;break}}if(x)break}}
+      if(x){v[i]=x;return t}}
+    return 0}
+  const run=(v,mt)=>{let hi=1;for(;;){const t=one(v,mt);if(t<0)return-1;if(!t)return hi;hi=Math.max(hi,t)}};
+  for(;;){const r=run(v,maxT);if(r<0)return{left:[...Array(n*n).keys()].filter(i=>!v[i]),top:-1};top=Math.max(top,r);
+    if(v.every(Boolean)||maxT<4)break;
+    let found=false;
+    for(let i=0;i<n*n&&!found;i++){if(v[i])continue;const ok=[];
+      for(const x of cand(v,i)){const c=v.slice();c[i]=x;if(run(c,3)>=0)ok.push(x)}
+      if(ok.length==1){v[i]=ok[0];found=true;top=4}}
+    if(!found)break}
+  return{left:[...Array(n*n).keys()].filter(i=>!v[i]),top}}
 function start(){
   n=S.size;cfg=M[n];sol=Array(n*n).fill(0);fillGrid(sol);
-  // choose which numbers to show so the puzzle can be finished with simple, one-step thinking
-  // (this also makes sure it has only one answer); after many tries, show the number where it gets stuck
-  let keep;
-  for(let t=0;t<120;t++){keep=new Set([...Array(n*n).keys()].sort(()=>Math.random()-.5).slice(0,cfg.steps[S.step]));
-    if(!kidSolveSd(sol.map((v,i)=>keep.has(i)?v:0)).length)break;
-    if(t==119){let left;while((left=kidSolveSd(sol.map((v,i)=>keep.has(i)?v:0))).length)keep.add(left[0])}}
+  // choose which numbers to show so the puzzle needs this step's kind of thinking (cfg.t): harder as the steps and
+  // grids go up, never too early. This also makes sure it has only one answer. After many tries, relax the
+  // lowest tier; after many more, show the number where the solver gets stuck.
+  let keep;const tr=cfg.t[S.step],want=cfg.steps[S.step],solve=k=>tierSolveSd(sol.map((v,i)=>k.has(i)?v:0),tr[1]);
+  // steps that must need harder thinking: start from the full answer and take numbers away one at a time, only
+  // while it stays solvable within this step's tiers (this quickly finds puzzles that need the harder tier)
+  const dig=()=>{const k=new Set([...Array(n*n).keys()]);for(const i of[...k].sort(()=>Math.random()-.5)){if(k.size<=want)break;
+      k.delete(i);if(solve(k).left.length)k.add(i)}return k};
+  for(let t=0;t<2000;t++){keep=tr[0]>=3?dig():new Set([...Array(n*n).keys()].sort(()=>Math.random()-.5).slice(0,want));
+    const r=solve(keep);
+    if(keep.size==want&&!r.left.length&&r.top>=(t<(tr[0]>=3?40:1500)?tr[0]:1))break;
+    if(t==1999){let left;while((left=solve(keep).left).length)keep.add(left[0])}}
   board=sol.map((v,i)=>keep.has(i)?v:0);given=keep;
   sel=[...Array(n*n).keys()].find(i=>!given.has(i));hist=[];errors=0;hints=0;done=false;secs=0;
   Lab.hideWin();$('grid').classList.remove('solved');
@@ -149,6 +168,9 @@ function whySd(i,v){
   // only place for v in one of its lines
   for(const L of lines){if(L.some(j=>board[j]==v))continue;
     const spots=L.filter(j=>(j==i||!board[j])&&candOf(j,realBox()).includes(v));if(spots.length==1&&spots[0]==i)return'only'}
+  // testing an idea: every other number here breaks a rule within a few simple steps
+  const vals=board.slice();vals[i]=0;
+  if([...Array(n)].map((_,k)=>k+1).filter(y=>y!=v).every(y=>{const c=vals.slice();c[i]=y;return tierSolveSd(c,3).top==-1}))return'whatif';
   return null}
 function snapSd(i){return{cols:n,cells:board.map((x,k)=>[x?String(x):'',(given.has(k)?'gold':'')+(k==i?' mint hl':'')])}}
 function trackSd(i,v){const keep=board[i];board[i]=0;
@@ -159,7 +181,8 @@ function trackSd(i,v){const keep=board[i];board[i]=0;
     Lab.logic(w,'used',{snap:sn,cap:{last:'Every other number was already in that line, so '+box+' had to be '+v+'.',
       once:'Its row and column already had every other number, so '+box+' had to be '+v+'.',
       box:'With the small box checked too, only '+v+' was left for '+box+'.',
-      only:v+' could not go anywhere else in that line, so they put it in '+box+'.'}[w]})}
+      only:v+' could not go anywhere else in that line, so they put it in '+box+'.',
+      whatif:'No single clue decided '+box+', but every other number would have broken a rule, so it had to be '+v+'.'}[w]})}
   board[i]=keep}
 function put(v){
   if(done)return;if(sel<0){Lab.msg('Tap a box first.');return}

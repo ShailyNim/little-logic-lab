@@ -8,6 +8,7 @@ const KINDS=[
   ['only','Only one left'],
   ['neigh','Neighbours and edges'],
   ['ahead','Looking ahead'],
+  ['test','Testing an idea (the top levels)'],
   ['num','Numbers']];
 // Each move: id, name, kind, games (where it appears), practise (where to practise it),
 // what / why / looks / home (the explainer), demo (an animated example from a named puzzle).
@@ -104,6 +105,13 @@ const MOVES=[
   home:'Build a block tower that topples. Ask: which block made it wobble? Change just that one.',
   demo:{in:'Star Trails',cols:3,cells:[E('','path'),E('','path'),E('•'),E('•'),E('🚀','path'),E('•'),E('•'),E('•'),E('•')],
    steps:[[4,'🚀','path hl','Stuck: the top-right dot can\'t be reached now.'],[4,'•','','Slide back one step…'],[1,'🚀','path','…and go a different way.'],[2,'','path','']]}},
+ {id:'whatif',name:'What if…?',kind:'test',games:['rovers','chips','sudoku'],practise:['rovers','Lost Rovers levels 7 and 8, Number Chips level 13'],
+  what:'Trying a possibility in your head, following it a step or two, and seeing that it breaks a rule, so the other choice must be right.',
+  why:'This is reasoning by "what if": testing an idea and learning from where it fails. It is the hardest thinking in these games, so it only appears on the top levels, after the simpler moves are secure.',
+  looks:'On the hardest levels they pause, try an idea in their head, and then correctly fill a box that no single clue decides.',
+  home:'Make up little mysteries: "If the dog took the cookie, there would be muddy paw prints. There are none, so it wasn\'t the dog!"',
+  demo:{in:'Number Chips',cols:2,cells:[E('','cage'),E('','cage'),E(''),E('2','gold')],
+   steps:[[0,'?','cage hl','This group adds to 3. What if this box were 1?'],[1,'2','cage x hl','Then this one would have to be 2…'],[3,'2','gold hl','…but its column already has a 2!'],[0,'2','cage mint','So the idea was wrong: this box is 2…'],[1,'1','cage mint','…and the other is 1.'],[3,'2','gold','']]}},
  {id:'bonds',name:'Number bonds (+)',kind:'num',games:['chips'],practise:['chips','Number Chips, levels 1 to 3'],
   what:'Splitting a total into two or three numbers that add up to it: 5 can be 1 + 4 or 2 + 3.',
   why:'Number bonds are the building blocks of mental maths. Here your child uses them as clues, not just as sums.',

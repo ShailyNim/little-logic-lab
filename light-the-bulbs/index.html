@@ -43,8 +43,10 @@ body{--accent:var(--sun);--on-accent:var(--on-sun)}
 </main>
 <script>
 // n grid size (every box gets a wire piece), deg most wires one piece may join (2 = straight/corner, 3 adds T, 4 adds cross),
-// b range of bulbs, keep share of pieces that start already turned the right way
-const L=[{n:3,deg:2,b:[1,1],keep:.5},{n:3,deg:2,b:[1,1],keep:.3},{n:3,deg:3,b:[2,2],keep:.3},{n:4,deg:3,b:[2,2],keep:.3},{n:4,deg:3,b:[3,3],keep:.2},{n:4,deg:4,b:[3,4],keep:.1},{n:5,deg:4,b:[3,4],keep:.2},{n:5,deg:4,b:[4,5],keep:0},{n:6,deg:4,b:[4,6],keep:.1},{n:6,deg:4,b:[5,7],keep:0}];
+// b range of bulbs, keep share of pieces that start already turned the right way,
+// w [shortest, longest] chain of thinking: how many steps of "this piece decides its neighbour" it takes from the
+// board edge to the last piece (see chain). Thinking gets harder as levels go up, never too early.
+const L=[{n:3,deg:2,b:[1,1],keep:.5,w:[1,1]},{n:3,deg:2,b:[1,1],keep:.3,w:[1,2]},{n:3,deg:3,b:[2,2],keep:.3,w:[2,2]},{n:4,deg:3,b:[2,2],keep:.3,w:[1,2]},{n:4,deg:3,b:[3,3],keep:.2,w:[2,3]},{n:4,deg:4,b:[3,4],keep:.1,w:[3,4]},{n:5,deg:4,b:[3,4],keep:.2,w:[2,4]},{n:5,deg:4,b:[4,5],keep:0,w:[4,5]},{n:6,deg:4,b:[4,6],keep:.1,w:[3,5]},{n:6,deg:4,b:[5,7],keep:0,w:[5,8]}];
 const GID='bulbs';
 Lab.setupGame({id:GID,
   demo:'bulbs',caption:'Tap to turn. Light every bulb.',
@@ -56,7 +58,15 @@ const D=[[1,0,-1,4],[2,1,0,8],[4,0,1,1],[8,-1,0,2]];
 const rot=(m,k)=>{for(let i=0;i<k;i++)m=((m<<1)|(m>>3))&15;return m};
 
 // grow one tree of wire that reaches every box (winding paths, few dead ends), so a solution always exists
-function gen(d){const n=d.n,N=n*n;
+// How long the chain of thinking is: wave 0 = pieces the board edge decides on its own, wave k = pieces decided
+// once wave k-1 is known (matching neighbours). Returns the number of waves, or -1 if it can't be finished this way.
+function chain(n,b){const nbr=(i,d)=>{const x=i%n+d[1],y=(i/n|0)+d[2];return x<0||y<0||x>=n||y>=n?-1:y*n+x};
+  let dom=b.map((m,i)=>{const s=new Set();for(let k=0;k<4;k++)s.add(rot(m,k));return[...s].filter(mm=>D.every(d=>!(mm&d[0])||nbr(i,d)>=0))});
+  let w=0,fixed=dom.filter(x=>x.length==1).length;
+  while(fixed<n*n){dom=dom.map((x,i)=>x.filter(m=>D.every(d=>{const j=nbr(i,d);return j<0||dom[j].some(o=>!!(o&d[3])==!!(m&d[0]))})));
+    const f=dom.filter(x=>x.length==1).length;if(f==fixed)return-1;fixed=f;w++}
+  return w}
+function gen(d){const n=d.n,N=n*n;let tries=0;
   for(;;){const m=Array(N).fill(0),dg=Array(N).fill(0),seen=Array(N).fill(false),s=rnd(N),stack=[s];seen[s]=true;let count=1;
     while(stack.length){const t=stack[stack.length-1];
       const opts=dg[t]<d.deg?D.map(dd=>{const x=t%n+dd[1],y=(t/n|0)+dd[2];return(x<0||y<0||x>=n||y>=n||seen[y*n+x])?null:[dd,y*n+x]}).filter(Boolean):[];
@@ -66,6 +76,9 @@ function gen(d){const n=d.n,N=n*n;
     if(count<N)continue; // a box was left out: try again
     const lf=[...Array(N).keys()].filter(c=>dg[c]==1),nb=lf.length-1;
     if(nb<d.b[0]||nb>d.b[1])continue;
+    // the thinking this layout needs: keep it within the level's chain length (after many tries, accept any that
+    // can be worked out without guessing)
+    const w=chain(n,m);if(w<0||(tries++<400&&(w<d.w[0]||w>d.w[1])))continue;
     const bat=lf[rnd(lf.length)];
     return{m,bat,bulbs:lf.filter(c=>c!=bat)}}}
 
