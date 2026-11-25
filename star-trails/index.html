@@ -35,8 +35,9 @@ body{--accent:var(--mint);--on-accent:var(--on-mint)}
 <script>
 const $=id=>document.getElementById(id),cv=$('c'),X=cv.getContext('2d');
 const EM=['🚀','🪐','🌙','⭐','🛸','👽','☄️','🌍','🌞','🛰️'];
-// rung: [grid n, [min,max] obstacles, target chance a random attempt succeeds, start (c=corner,a=any)]
-const RG=[[3,[1,2],.5,'c'],[3,[1,3],.4,'a'],[4,[2,5],.5,'c'],[4,[2,6],.4,'a'],[4,[3,7],.33,'a'],[5,[5,11],.4,'c'],[5,[5,12],.33,'a'],[5,[6,13],.28,'a'],[5,[6,14],.25,'a'],[6,[10,20],.33,'a'],[6,[10,21],.25,'a'],[6,[11,22],.2,'a'],[7,[14,24],.15,'a'],[7,[12,22],.1,'a']];
+// rung: [grid n, start (c = a corner, e = an edge box, a = anywhere)]. Every box on the board holds a dot;
+// levels get harder only by board size and by starting away from the corners.
+const RG=[[3,'c'],[3,'a'],[4,'c'],[4,'e'],[4,'a'],[5,'c'],[5,'e'],[5,'a'],[5,'a'],[6,'c'],[6,'e'],[6,'a'],[7,'c'],[7,'a']];
 const D=[[1,0],[-1,0],[0,1],[0,-1]],MAXR=RG.length-1,GID='trails';
 let S;try{S=JSON.parse(localStorage.getItem('st1'))}catch(e){}
 S=S||{rung:0,clean:0,hard:0,n:0,log:[],stk:[]};
@@ -61,34 +62,27 @@ function reach(n,open,path){const seen=new Uint8Array(n*n),v=new Uint8Array(n*n)
  const s=[path[path.length-1]];v[s[0]]=1;
  while(s.length)for(const q of nb(n,s.pop()))if(open[q]&&!seen[q]&&!v[q]){v[q]=1;f++;s.push(q)}
  return f==tot}
-const isD=()=>!reach(G.n,G.open,P)||(r=>!r.over&&r.cnt==0)(count(G.n,G.open,P,1,50000));
+// stuck = the dots left can't all be reached any more (the quick finisher is tried first, the full search after)
+const isD=()=>{if(!reach(G.n,G.open,P))return true;if(complete(G.n,G.open,P,20))return false;const r=count(G.n,G.open,P,1,50000);return!r.over&&r.cnt==0};
 let G,P,M,doomed,done,hint,drag,lastBad,SZ=280,lastEm,area={w:300,h:300},C={};
-function trial(n,open,s){const seen=new Uint8Array(n*n);seen[s]=1;let c=s,left=-1;for(let i=0;i<n*n;i++)if(open[i])left++;
- for(;;){const o=nb(n,c).filter(q=>open[q]&&!seen[q]);if(!o.length)return left==0?1:0;c=o[Math.random()*o.length|0];seen[c]=1;left--}}
-const est=(n,open,s)=>{let w=0;for(let i=0;i<250;i++)w+=trial(n,open,s);return w/250};
-// random self-avoiding path of L cells
-function walk(n,L,s){const seen=new Uint8Array(n*n),p=[s];seen[s]=1;let k=0;
- const go=()=>{if(p.length==L)return 1;if(++k>60000)return 0;for(const q of sh(nb(n,p[p.length-1]))){if(seen[q])continue;seen[q]=1;p.push(q);if(go())return 1;p.pop();seen[q]=0;if(k>60000)return 0}return 0};
- return go()?p:null}
-// big boards (6×6 and up): draw a hidden trail first and make every other box a gap, so a solution always exists;
-// keep the try whose random-attempt success rate is closest to the target
-function makeByPath(r){const[n,[lo,hi],tg]=RG[r];let best=null,bd=9;
- for(let t=0;t<16&&bd>=.03;t++){const L=n*n-(lo+(Math.random()*(hi-lo+1)|0)),s=Math.random()*n*n|0,p=walk(n,L,s);if(!p)continue;
-  const open=new Uint8Array(n*n);p.forEach(c=>open[c]=1);const q=est(n,open,s),d=Math.abs(q-tg);
-  if(d<bd){bd=d;best={n,open,start:s,cnt:L,p:q,sig:open.join('')+s}}}
- return best}
-function make(r){if(RG[r][0]>=6){const b=makeByPath(r);if(b)return b}
- const[n,[lo,hi],tg,sm]=RG[r];let best=null,bd=9;
- for(let t=0;t<14&&bd>=.04;t++){
-  const s=sm=='c'?[0,n-1,n*(n-1),n*n-1][Math.random()*4|0]:Math.random()*n*n|0,idx=[...Array(n*n).keys()].filter(i=>i!=s),open=new Uint8Array(n*n).fill(1),cs=sh(idx.slice());
-  for(let i=lo+(Math.random()*(hi-lo+1)|0);i>0;i--)open[cs[i]]=0;
-  let p=reach(n,open,[s])?est(n,open,s):0,d=p?Math.abs(p-tg):9;
-  // hill-climb: move/add/remove obstacles, keep changes that bring the random-attempt success rate closer to the target
-  for(let it=0;it<120&&d>=.03;it++){const o=open.slice(),bl=idx.filter(i=>!o[i]),fr=idx.filter(i=>o[i]),m=Math.random(),pk=a=>a[Math.random()*a.length|0];
-   if(m<.25&&bl.length>lo)o[pk(bl)]=1;else if(m<.5&&bl.length<hi)o[pk(fr)]=0;else if(bl.length&&fr.length){o[pk(bl)]=1;o[pk(fr)]=0}
-   if(!reach(n,o,[s]))continue;const q=est(n,o,s),dq=q?Math.abs(q-tg):9;if(dq<d){open.set(o);d=dq;p=q}}
-  if(p&&d<bd){bd=d;best={n,open:open.slice(),start:s,cnt:open.reduce((a,b)=>a+b,0),p,sig:open.join('')+s}}}
- return best||(r>0?make(r-1):null)}
+// Finish a trail quickly: always step to the free neighbour with the fewest free neighbours of its own
+// (ties broken at random). Tries a few times; returns the rest of the trail, or null if every try got stuck.
+function complete(n,open,path,tries=30){
+ for(let t=0;t<tries;t++){const seen=new Uint8Array(n*n);path.forEach(c=>seen[c]=1);let left=0;for(let i=0;i<n*n;i++)if(open[i]&&!seen[i])left++;
+  const out=[];let c=path[path.length-1];
+  while(left){const o=nb(n,c).filter(q=>open[q]&&!seen[q]);if(!o.length)break;
+   const deg=q=>nb(n,q).filter(z=>open[z]&&!seen[z]).length;let best=9,pick=[];
+   for(const q of o){const d=deg(q);if(d<best){best=d;pick=[q]}else if(d==best)pick.push(q)}
+   c=pick[Math.random()*pick.length|0];seen[c]=1;out.push(c);left--}
+  if(!left)return out}
+ return null}
+// A full board: every box is open. Pick a start the level allows and keep it only if a whole trail from it exists
+// (on 3×3, 5×5 and 7×7 boards, half the boxes cannot start one).
+function make(r){const[n,sm]=RG[r],open=new Uint8Array(n*n).fill(1),edge=i=>{const x=i%n,y=i/n|0;return x==0||y==0||x==n-1||y==n-1};
+ const corners=[0,n-1,n*(n-1),n*n-1];
+ let pool=sm=='c'?corners:sm=='e'?[...Array(n*n).keys()].filter(i=>edge(i)&&!corners.includes(i)):[...Array(n*n).keys()].filter(i=>!corners.includes(i));
+ for(const s of sh(pool.slice()))if(complete(n,open,[s]))return{n,open,start:s,cnt:n*n,p:0,sig:n+'-'+s};
+ return{n,open,start:0,cnt:n*n,p:0,sig:n+'-0'}}
 let lastSig;
 const intro='Slide the 🚀 to visit every dot once.';
 function nxt(){let k=0;do G=make(S.rung);while(G.sig==lastSig&&++k<5);lastSig=G.sig;let e;do e=EM[Math.random()*EM.length|0];while(e==lastEm);G.em=lastEm=e;G.t0=Date.now();
@@ -134,7 +128,7 @@ function win(){done=true;finish('solved');msg('You visited every dot!',true);
 $('kb').onclick=()=>{if(!done){finish('skip');nxt()}};
 $('rb').onclick=()=>{if(done)return;M.rs++;if(doomed)M.look.push(M.dMax-M.dAt);P=[G.start];doomed=false;msg(intro,true)};
 $('hb').onclick=()=>{if(done)return;if(doomed){msg('Slide back a bit first ⬅️');return}
- const r=count(G.n,G.open,P,1,60000);if(r.first){M.hint++;Lab.sfx('hint');hint={c:[P[P.length-1],...r.first.slice(0,3)],u:Date.now()+3000};msg('Follow the gold dashes.')}};
+ const r={first:complete(G.n,G.open,P,40)||count(G.n,G.open,P,1,60000).first};if(r.first){M.hint++;Lab.sfx('hint');hint={c:[P[P.length-1],...r.first.slice(0,3)],u:Date.now()+3000};msg('Follow the gold dashes.')}};
 // draw (colours come from the shared Sea glass tokens, so dim mode applies too)
 function colours(){const cs=getComputedStyle(document.documentElement),g=k=>cs.getPropertyValue(k).trim();
  C={raised:g('--raised'),text:g('--text'),given:g('--given'),
