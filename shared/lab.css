@@ -27,6 +27,10 @@
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;background:var(--page);color:var(--text);font-family:var(--font)}
 body{overscroll-behavior:none}
+/* A little extra room under every page: the screen still opens exactly one screen tall, but it can be pushed
+   up a bit so the bottom buttons can always be reached, even under a badge the host adds in a corner
+   (Netlify puts a "Powered by Netlify" button bottom-right on free sites). */
+body::after{content:"";display:block;height:76px}
 /* the Lab's six colours as a thin stripe along the top of every page */
 body::before{content:"";position:fixed;top:0;left:0;right:0;height:5px;z-index:40;pointer-events:none;
   background:linear-gradient(90deg,var(--sun) 0 16.66%,var(--apricot) 0 33.33%,var(--pink) 0 50%,var(--lavender) 0 66.66%,var(--sky) 0 83.33%,var(--mint) 0)}
