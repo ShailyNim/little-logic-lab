@@ -10,18 +10,10 @@
 <style>
 body{--accent:var(--mint);--on-accent:var(--on-mint)}
 #c{touch-action:none;display:block}
-.sheet{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(35,66,59,.45)}
-.sheet.on{display:flex}
-.sheet-card{background:var(--raised);border-radius:var(--r-panel);padding:16px;max-width:460px;width:100%;max-height:100%;overflow:auto;font-size:14px}
-.sheet-card h2{margin:0 0 8px;font-size:20px}
-.sheet-card table{width:100%;border-collapse:collapse;margin:8px 0}
-.sheet-card td,.sheet-card th{padding:4px;border-bottom:1px solid var(--line);text-align:center}
-.sheet-card .btn{height:40px;font-size:14px;margin:3px}
-.spark{font-size:20px;letter-spacing:2px;color:#3C9C7E}
 </style>
 </head><body>
 <main class="screen">
-  <header class="hdr"><a class="home-btn" href="../index.html"><span aria-hidden="true">🏠</span> Home</a><div class="ttl"><h1 id="ttl">Star Trails</h1><span class="lvl" id="lv"></span></div></header>
+  <header class="hdr"><a class="home-btn" href="../index.html"><span aria-hidden="true">🏠</span> Home</a><div class="ttl"><h1>Star Trails</h1><span class="lvl" id="lv"></span></div></header>
   <div class="caption stk" id="stk"></div>
   <div class="play" id="play"><div class="board"><canvas id="c"></canvas></div></div>
   <div class="msg" id="msg" aria-live="polite"></div>
@@ -33,7 +25,6 @@ body{--accent:var(--mint);--on-accent:var(--on-mint)}
     <button class="btn icon" id="next" aria-label="Next level">▶</button>
   </div>
 </main>
-<div class="sheet" id="par"><div class="sheet-card" id="pb"></div></div>
 <script>
 const $=id=>document.getElementById(id),cv=$('c'),X=cv.getContext('2d');
 const EM=['🚀','🪐','🌙','⭐','🛸','👽','☄️','🌍','🌞','🛰️'];
@@ -46,9 +37,7 @@ S=S||{rung:0,clean:0,hard:0,n:0,log:[],stk:[]};
 if(S.stk&&S.stk.length&&!(Lab.game('trails').stk||[]).length){Lab.game('trails').stk=S.stk.slice(-60);Lab.save()}
 Lab.setupGame({id:'trails',
   demo:'trails',caption:'Visit every dot once.',
-  stickers:['🚀','🪐','🌙','⭐','🛸','👽','☄️','🌍','🌞','🛰️'],
-  // the grown-ups' stats moved here from the header
-  extraHelp:(el,close)=>{el.innerHTML='<button class="link">Grown-ups</button>';el.firstChild.onclick=()=>{close();grownups()}}});
+  stickers:['🚀','🪐','🌙','⭐','🛸','👽','☄️','🌍','🌞','🛰️']});
 const save=()=>{try{localStorage.setItem('st1',JSON.stringify(S))}catch(e){}};
 const sh=a=>{for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
 const nb=(n,c)=>{const x=c%n,y=c/n|0,r=[];for(const[dx,dy]of D){const X=x+dx,Y=y+dy;if(X>=0&&Y>=0&&X<n&&Y<n)r.push(Y*n+X)}return r};
@@ -188,17 +177,7 @@ function draw(now){if(!G)return;X.clearRect(0,0,SZ,SZ);const n=G.n,c=SZ/n,ct=i=>
  if(!done){const[hx,hy]=ct(P[P.length-1]);if(P.length==1){X.strokeStyle=C.given;X.lineWidth=4;X.beginPath();X.arc(hx,hy,c*(.3+(Lab.reduced()?0:.04*Math.sin(now/200))),0,7);X.stroke()}
   X.font=c*.55+'px serif';X.fillText('🚀',hx,hy)}}
 function loop(t){draw(t);requestAnimationFrame(loop)}
-// grown-up view: ⚙️ button with a sum, or long-press the title
-let lp;$('ttl').onpointerdown=()=>lp=setTimeout(par,800);$('ttl').onpointerup=$('ttl').onpointerleave=()=>clearTimeout(lp);
-function par(){const L=S.log.slice(-15).reverse(),a=S.log.slice(-10),av=f=>a.length?a.reduce((s,x)=>s+f(x),0)/a.length:0,lk=S.log.flatMap(x=>x.look);
- $('pb').innerHTML='<h2>Grown-up view</h2><p>Level <b>'+(S.rung+1)+'</b> of '+RG.length+' · '+S.log.length+' puzzles</p><p>Level trend (last 30): <span class="spark">'+S.log.slice(-30).map(x=>'▁▂▃▄▅▆▇█'[Math.floor(Math.min(x.r,MAXR)*7/MAXR)]).join('')+'</span></p><p>Last 10: '+(av(x=>x.t/x.open)/1000).toFixed(1)+' s per dot · '+av(x=>x.un).toFixed(1)+' undos · '+av(x=>x.doom).toFixed(1)+' dead-ends · '+av(x=>x.hint).toFixed(1)+' hints</p><p>Avg steps taken after a dead-end began: '+(lk.length?(lk.reduce((s,v)=>s+v,0)/lk.length).toFixed(1):'n/a')+' (lower = sees trouble sooner)</p><table><tr><th>Lvl</th><th>Grid</th><th>Time</th><th>Undo</th><th>Dead</th><th>Hint</th><th></th></tr>'+L.map(x=>'<tr><td>'+(x.r+1)+'</td><td>'+x.n+'×'+x.n+'</td><td>'+(x.t/1000|0)+'s</td><td>'+x.un+'</td><td>'+x.doom+'</td><td>'+x.hint+'</td><td>'+(x.res=='solved'?'✔':'skip')+'</td></tr>').join('')+'</table><p><button class="btn" id="p1">Level −</button><button class="btn" id="p2">Level +</button><button class="btn" id="p3">Export</button><button class="btn" id="p6">Back to level 1</button><button class="btn" id="p4">Reset all</button><button class="btn main" id="p5">Close</button></p>';
- $('par').classList.add('on');
- $('p1').onclick=()=>{S.rung=Math.max(0,S.rung-1);save();par()};$('p2').onclick=()=>{S.rung=Math.min(MAXR,S.rung+1);save();par()};
- $('p3').onclick=()=>{const b=new Blob([JSON.stringify(S,null,1)],{type:'application/json'}),k=document.createElement('a');k.href=URL.createObjectURL(b);k.download='star-trails-log.json';k.click()};
- $('p6').onclick=()=>{S.rung=0;S.clean=S.hard=0;save();par()};
- $('p4').onclick=()=>{if(confirm('Erase all Star Trails progress?')){S={rung:0,clean:0,hard:0,n:0,log:[],stk:[]};save();$('par').classList.remove('on');nxt()}};
- $('p5').onclick=()=>{$('par').classList.remove('on');nxt()}}
-function grownups(){const a=10+(Math.random()*20|0),b=10+(Math.random()*20|0);if(prompt('Grown-ups only: '+a+' + '+b+' = ?')==a+b)par()}
+// the grown-ups' details for this game are in the Grown-ups corner (grown-ups/), read from st1
 Lab.fit($('play'),(w,h)=>{area={w,h};if(G)fit()});
 nxt();requestAnimationFrame(loop);
 </script>

@@ -56,6 +56,13 @@ h2.sec{font-size:18px;margin:22px 0 8px}
 .row select{font:700 15px var(--font);padding:6px 8px;border-radius:10px;border:2px solid var(--line);background:var(--raised);color:var(--text)}
 .small-btn{font:700 14px var(--font);padding:8px 12px;border-radius:99px;border:0;background:var(--panel);color:var(--text);cursor:pointer}
 .empty-note{background:var(--raised);border-radius:16px;padding:14px;font-weight:700;color:var(--text-soft)}
+/* Star Trails in detail (moved here from the game) */
+.trail{background:var(--raised);border-radius:16px;padding:6px 12px;margin-top:10px;font-size:14px;font-weight:600}
+.trail summary{font-weight:800;cursor:pointer;padding:6px 0}
+.trail p{margin:6px 0}
+.trail table{width:100%;border-collapse:collapse;margin:8px 0}
+.trail td,.trail th{padding:4px;border-bottom:1px solid var(--panel);text-align:center}
+.spark{font-size:20px;letter-spacing:2px;color:#3C9C7E}
 /* explainer card */
 .ex-card{max-width:400px;text-align:left;max-height:92vh;overflow:auto}
 .ex-card h2{margin:0;font-size:22px}
@@ -71,7 +78,7 @@ h2.sec{font-size:18px;margin:22px 0 8px}
 .gate .win-card{max-width:340px}
 .gate input{font:800 24px var(--font);width:120px;text-align:center;padding:8px;border-radius:12px;border:3px solid var(--line);background:var(--raised);color:var(--text);margin:10px 0}
 .gate .err{min-height:20px;color:#B5504F;font-weight:700;font-size:14px}
-@media print{.gate,.hdr .home-btn,.settings,.print-btn,body::before,body::after{display:none!important}.move .name::after{content:""}}
+@media print{#trx{display:none}.gate,.hdr .home-btn,.settings,.print-btn,body::before,body::after{display:none!important}.move .name::after{content:""}}
 </style>
 </head><body>
 <div class="gate" id="gate"><div class="win-card"><h2>Grown-ups only</h2>
@@ -133,7 +140,7 @@ function render(){
   const tips=tryNext();if(tips.length)h+='<h2 class="sec">Try next</h2><ul class="next">'+tips.map(t=>'<li>'+t+'</li>').join('')+'</ul>';
   // each game
   h+='<h2 class="sec">Games</h2><div class="games">'+Object.entries(LL.GAMES).map(([id,[name,href,icon,col]])=>{const g=st.games[id]||{};
-    return '<a class="gcard" href="../'+href+'" style="--tint:var(--'+col+'-t);text-decoration:none;color:inherit"><b>'+icon+' '+name+'</b><span>'+(g.stars||0)+' solved · '+((g.stk||[]).length)+' stickers</span></a>'}).join('')+'</div>';
+    return '<a class="gcard" href="../'+href+'" style="--tint:var(--'+col+'-t);text-decoration:none;color:inherit"><b>'+icon+' '+name+'</b><span>'+(g.stars||0)+' solved · '+((g.stk||[]).length)+' stickers</span></a>'}).join('')+'</div>'+trailDetail();
   // settings
   h+='<h2 class="sec">Settings</h2><div class="settings">'+
     '<div class="row">Sounds<button class="sw" data-k="sound" aria-pressed="'+!!st.sound+'" aria-label="Sounds"></button></div>'+
@@ -150,8 +157,22 @@ function render(){
       if(id=='sudoku')try{localStorage.removeItem('lll.sudoku')}catch(x){}
       if(id=='trails')try{const s=JSON.parse(localStorage.getItem('st1')||'{}');s.rung=0;s.clean=s.hard=0;localStorage.setItem('st1',JSON.stringify(s))}catch(x){}}
     e.target.value=''};
+  const trx=document.getElementById('trx');if(trx)trx.onclick=()=>{const b=new Blob([JSON.stringify(trailLog(),null,1)],{type:'application/json'}),k=document.createElement('a');k.href=URL.createObjectURL(b);k.download='star-trails-log.json';k.click()};
   document.getElementById('clr').onclick=()=>{if(confirm('Clear the logic report and play history? Levels and stickers stay.')){
-    st.skills={};st.plog=[];st.play={};st.moments=[];Lab.save();render()}}}
+    st.skills={};st.plog=[];st.play={};st.moments=[];Lab.save();
+    const t=trailLog();if(t.log){t.log=[];try{localStorage.setItem('st1',JSON.stringify(t))}catch(x){}}render()}}}
+// ---------- Star Trails in detail: its own puzzle-by-puzzle log (kept by the game in st1) ----------
+function trailLog(){try{return JSON.parse(localStorage.getItem('st1'))||{}}catch(e){return{}}}
+function trailDetail(){const S=trailLog(),log=S.log||[],MAXR=13;if(!log.length)return'';
+  const L=log.slice(-15).reverse(),a=log.slice(-10),av=f=>a.reduce((s,x)=>s+f(x),0)/a.length,lk=log.flatMap(x=>x.look||[]);
+  return '<details class="trail"><summary>⭐ Star Trails in detail</summary>'+
+    '<p>Level <b>'+((S.rung||0)+1)+'</b> of '+(MAXR+1)+' · '+log.length+' trails played</p>'+
+    '<p>Level over the last 30 trails: <span class="spark">'+log.slice(-30).map(x=>'▁▂▃▄▅▆▇█'[Math.floor(Math.min(x.r,MAXR)*7/MAXR)]).join('')+'</span></p>'+
+    '<p>Last 10 trails, on average: '+(av(x=>x.t/x.open)/1000).toFixed(1)+' s per dot · '+av(x=>x.un).toFixed(1)+' undos · '+av(x=>x.doom).toFixed(1)+' dead ends · '+av(x=>x.hint).toFixed(1)+' hints</p>'+
+    '<p>Moves made after a dead end began, on average: <b>'+(lk.length?(lk.reduce((s,v)=>s+v,0)/lk.length).toFixed(1):'none yet')+'</b> (lower means they spot trouble sooner)</p>'+
+    '<table><tr><th>Level</th><th>Grid</th><th>Time</th><th>Undos</th><th>Dead ends</th><th>Hints</th><th></th></tr>'+
+    L.map(x=>'<tr><td>'+(x.r+1)+'</td><td>'+x.n+'×'+x.n+'</td><td>'+(x.t/1000|0)+' s</td><td>'+x.un+'</td><td>'+x.doom+'</td><td>'+x.hint+'</td><td>'+(x.res=='solved'?'✔':'skipped')+'</td></tr>').join('')+'</table>'+
+    '<p><button class="small-btn" id="trx">Export the full log</button></p></details>'}
 const stat=(k,v,t)=>'<div class="stat"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="t">'+esc(t)+'</div></div>';
 const dots=n=>'<span class="dots" aria-hidden="true">'+[1,2,3].map(i=>'<i'+(i<=n?' class="on"':'')+'></i>').join('')+'</span>';
 // suggestions: the moves they've started but haven't got yet, then a move coming up in a game they play
